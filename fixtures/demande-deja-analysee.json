@@ -1,0 +1,9 @@
+{
+  "_commentaire": "FIXTURE 1 sur 3 -- le verbatim du critere de sortie de la fiche A : 'je soumets Les Tontons flingueurs -> le service repond deja analyse, voici la page'. Attendu du rejeu hors ligne : etat=deja_analysee, URL complete de la page, ZERO appel d'API et ZERO insert. Le champ _commentaire est ignore par la validation (les champs inconnus ne sont pas lus).",
+  "titre": "Les Tontons flingueurs",
+  "realisateur": "Georges Lautner",
+  "annee": "1963",
+  "motif": "Un classique du dialogue de Michel Audiard, et un film dont la réputation a changé de nature avec le temps.",
+  "mail": "",
+  "site_web": ""
+}

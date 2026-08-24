@@ -1,0 +1,9 @@
+{
+  "_commentaire": "FIXTURE 2 sur 3 -- l'autre moitie du critere de sortie : un film ABSENT du registre (verifie sur les 46 titres publies le 2026-08-24). Attendu du rejeu hors ligne : la chaine va jusqu'a la qualification, chaque valeur d'axe ferme est soit dans vocabulaires.js soit null, et la ligne partirait a l'insert en statut proposee. Le rejeu N'APPELLE PAS l'API : la qualification y est bouchonnee.",
+  "titre": "Le Salaire de la peur",
+  "realisateur": "Henri-Georges Clouzot",
+  "annee": "1953",
+  "motif": "Quatre hommes convoient de la nitroglycérine sur une piste défoncée. Un film sur le travail, la peur et ce que l'argent achète.",
+  "mail": "",
+  "site_web": ""
+}
