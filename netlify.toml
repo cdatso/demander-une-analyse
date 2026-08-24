@@ -1,0 +1,28 @@
+# netlify.toml -- demander-une-analyse (prototype d'apprentissage BKL-FOR-006).
+#
+# AUCUN 'schedule' ici, et c'est voulu : qualifier n'est PAS une fonction
+# planifiee. C'est un ENDPOINT HTTP, appele par le formulaire d'index.html.
+# Une function synchrone Netlify est plafonnee a 60 secondes (les 30
+# secondes de la fiche C sont le plafond des fonctions PLANIFIEES) et la
+# charge utile tamponnee a 6 Mo -- la validation d'entree de la function
+# borne le corps bien en dessous.
+#
+# AUCUNE commande de build : le site est statique (index.html, file.html)
+# plus une function. Netlify installe lui-meme la dependance de
+# package.json au build.
+#
+# La route n'est PAS declaree par 'export const config = { path }' dans la
+# function : l'adresse reste donc l'adresse PAR DEFAUT,
+#   /.netlify/functions/qualifier
+# et c'est elle que le formulaire appelle, en relatif. Declarer un chemin
+# retirerait l'adresse par defaut -- il faudrait alors changer les deux
+# endroits a la fois.
+#
+# Fichier destine a une MACHINE : UTF-8 SANS BOM (derogation nommee du
+# mandat rubrique 6).
+
+[build]
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"

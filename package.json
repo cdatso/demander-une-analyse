@@ -1,0 +1,19 @@
+{
+  "name": "demander-une-analyse",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Demander une analyse -- prototype d'apprentissage BKL-FOR-006 (atelier AI-Shift du 26/08/2026, fiche A).",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "run-bouchonne": "node outils/run-bouchonne.mjs",
+    "controler-durcissement": "node outils/controler-durcissement.mjs",
+    "controler-proprete": "node outils/controler-proprete.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.120.0"
+  }
+}

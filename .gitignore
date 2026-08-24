@@ -1,0 +1,25 @@
+# .gitignore -- demander-une-analyse (prototype d'apprentissage BKL-FOR-006).
+#
+# Ceinture, pas preuve : la preuve est le controle de proprete rejoue
+# avant chaque commit (verification 13 du mandat, borne dure n.1) --
+#   node outils/controler-proprete.mjs
+# et son EXIT SE LIT.
+#
+# Fichier destine a une MACHINE (git) : UTF-8 SANS BOM. Un BOM en tete y
+# corromprait le premier motif d'exclusion.
+
+# Dependances -- exclues du pathspec, jamais commitees
+node_modules/
+
+# Secrets et variables locales -- rien de tout cela n'entre au depot
+.env
+.env.*
+*.key
+*.pem
+secrets*
+.netlify/
+
+# Systeme
+Thumbs.db
+desktop.ini
+.DS_Store
