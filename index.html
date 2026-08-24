@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Demander une analyse de film</title>
+<!--
+  index.html -- le formulaire public du service "Demander une analyse".
+  Prototype d'apprentissage BKL-FOR-006 (fiche A de l'atelier AI-Shift du
+  26/08/2026).
+
+  ZERO RESSOURCE EXTERNE : aucune feuille de style distante, aucun script
+  tiers, aucune police distante, aucune image distante. Tout est dans ce
+  fichier. C'est une borne du mandat, et c'est aussi ce qui rend la page
+  lisible hors ligne.
+
+  Le formulaire poste sur l'adresse PAR DEFAUT de la function, en
+  RELATIF : /.netlify/functions/qualifier. Aucune URL de projet, aucune
+  clef, aucune adresse de courriel n'est ecrite dans ce fichier.
+
+  Le texte affiche au visiteur est du CONTENU : il est en francais
+  accentue, et c'est normal. Le CODE, lui, reste en ASCII pur.
+
+  Fichier SERVI par un serveur : UTF-8 SANS BOM (derogation nommee du
+  mandat rubrique 6).
+-->
+<style>
+  :root {
+    --encre: #1c1a17;
+    --encre-douce: #5b544c;
+    --fond: #faf8f5;
+    --carte: #ffffff;
+    --trait: #ddd6cc;
+    --accent: #6b4f2a;
+    --ok: #2f5d3a;
+    --alerte: #8a3d2c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fond);
+    color: var(--encre);
+    font: 16px/1.6 Georgia, "Times New Roman", serif;
+    padding: 2.5rem 1.2rem 4rem;
+  }
+  main { max-width: 40rem; margin: 0 auto; }
+  h1 {
+    font-size: 2rem;
+    line-height: 1.2;
+    margin: 0 0 1rem;
+    font-weight: 600;
+  }
+  .chapeau { color: var(--encre-douce); margin: 0 0 1.6rem; }
+  .avis {
+    border-left: 3px solid var(--accent);
+    padding: 0.7rem 0 0.7rem 0.9rem;
+    margin: 0 0 2rem;
+    color: var(--encre-douce);
+    font-size: 0.94rem;
+  }
+  form {
+    background: var(--carte);
+    border: 1px solid var(--trait);
+    border-radius: 4px;
+    padding: 1.6rem;
+  }
+  .champ { margin-bottom: 1.2rem; }
+  label { display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.95rem; }
+  .facultatif { font-weight: 400; color: var(--encre-douce); }
+  input[type="text"], input[type="email"], textarea {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--trait);
+    border-radius: 3px;
+    font: inherit;
+    color: inherit;
+    background: var(--fond);
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  textarea { min-height: 6.5rem; resize: vertical; }
+  .aide { font-size: 0.86rem; color: var(--encre-douce); margin: 0.3rem 0 0; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    padding: 0.6rem 1.4rem;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  button[disabled] { opacity: 0.55; cursor: progress; }
+  /*
+    LE POT DE MIEL. Il est retire du flux, invisible a l'oeil, hors
+    tabulation et masque aux lecteurs d'ecran (aria-hidden) : un humain ne
+    peut pas le remplir par accident. Un robot qui remplit tous les champs
+    le remplira. On ne l'appelle pas "piege" dans le HTML.
+  */
+  .complement {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+  #accuse {
+    margin-top: 1.5rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--trait);
+    border-radius: 4px;
+    background: var(--carte);
+  }
+  #accuse[hidden] { display: none; }
+  #accuse.succes { border-left: 3px solid var(--ok); }
+  #accuse.souci { border-left: 3px solid var(--alerte); }
+  #accuse p { margin: 0 0 0.5rem; }
+  #accuse p:last-child { margin-bottom: 0; }
+  #accuse a { color: var(--accent); }
+  footer { margin-top: 2.5rem; font-size: 0.85rem; color: var(--encre-douce); }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Demander une analyse</h1>
+
+  <p class="chapeau">Proposez un film. Le service vérifie d'abord s'il est
+  déjà analysé sur le site ; sinon, il qualifie votre demande et l'ajoute
+  à une file d'attente publique.</p>
+
+  <p class="avis">Votre demande apparaîtra dans une <strong>file
+  publique</strong> — le titre, le réalisateur, l'année et la
+  qualification. Votre adresse électronique, si vous la donnez,
+  <strong>n'y apparaîtra pas</strong> : elle est conservée mais n'est pas
+  publiée. Aucune analyse n'est écrite automatiquement : la décision
+  d'analyser un film, et l'analyse elle-même, restent humaines.</p>
+
+  <form id="formulaire" novalidate>
+
+    <div class="champ">
+      <label for="titre">Titre du film <span aria-hidden="true">*</span></label>
+      <input type="text" id="titre" name="titre" maxlength="200" required
+             autocomplete="off" placeholder="ex. Les Tontons flingueurs">
+    </div>
+
+    <div class="champ">
+      <label for="realisateur">Réalisateur ou réalisatrice <span aria-hidden="true">*</span></label>
+      <input type="text" id="realisateur" name="realisateur" maxlength="200" required
+             autocomplete="off" placeholder="ex. Georges Lautner">
+    </div>
+
+    <div class="champ">
+      <label for="annee">Année de sortie <span class="facultatif">(facultatif)</span></label>
+      <input type="text" id="annee" name="annee" maxlength="4" inputmode="numeric"
+             pattern="[0-9]{4}" autocomplete="off" placeholder="ex. 1963">
+      <p class="aide">Utile en cas de remake ou de plusieurs versions.</p>
+    </div>
+
+    <div class="champ">
+      <label for="motif">Pourquoi ce film ? <span class="facultatif">(facultatif)</span></label>
+      <textarea id="motif" name="motif" maxlength="2000"
+                placeholder="Ce qui vous semble mériter une analyse."></textarea>
+    </div>
+
+    <div class="champ">
+      <label for="mail">Votre adresse électronique <span class="facultatif">(facultatif)</span></label>
+      <input type="email" id="mail" name="mail" maxlength="200" autocomplete="off">
+      <p class="aide">Conservée, jamais publiée, et aucun message ne vous
+      sera envoyé automatiquement.</p>
+    </div>
+
+    <div class="complement" aria-hidden="true">
+      <label for="site_web">Site web</label>
+      <input type="text" id="site_web" name="site_web" tabindex="-1" autocomplete="off">
+    </div>
+
+    <button type="submit" id="envoyer">Envoyer la demande</button>
+  </form>
+
+  <div id="accuse" hidden role="status" aria-live="polite"></div>
+
+  <footer>
+    <p>Prototype d'apprentissage — atelier du 26 août 2026. Le service
+    alimente une file d'attente ; il ne publie rien.</p>
+  </footer>
+
+</main>
+
+<script>
+// Code en ASCII pur (mandat rubrique 6). Les phrases affichees au
+// visiteur sont du CONTENU : elles sont en francais accentue.
+(function () {
+  'use strict';
+
+  var ENDPOINT = '/.netlify/functions/qualifier';
+
+  var formulaire = document.getElementById('formulaire');
+  var bouton = document.getElementById('envoyer');
+  var accuse = document.getElementById('accuse');
+
+  // Les textes rendus au visiteur, choisis par le champ 'etat' de
+  // l'accuse. La function, elle, ne renvoie qu'un code technique : c'est
+  // ce qui garantit que RIEN de ce que le visiteur a soumis ne revient
+  // dans la page.
+  var TEXTES = {
+    envoi: 'Envoi en cours…',
+    enregistree: 'Merci : votre demande est enregistrée. Elle apparaîtra ' +
+                 'dans la file publique, en attente d’arbitrage.',
+    deja_analysee: 'Ce film est déjà analysé sur le site. Voici la page :',
+    refusee: 'La demande n’a pas pu être acceptée : vérifiez que le titre ' +
+             'et le réalisateur sont renseignés, et que les textes ne sont pas trop longs.',
+    echec: 'Le service n’a pas pu traiter votre demande pour le moment. ' +
+           'Rien n’a été enregistré — vous pouvez réessayer plus tard.'
+  };
+
+  // Toujours par textContent, jamais par innerHTML : aucun contenu
+  // exterieur n'est interprete comme du balisage.
+  function afficher(classe, phrases, lien) {
+    accuse.className = classe;
+    accuse.textContent = '';
+    for (var i = 0; i < phrases.length; i++) {
+      var p = document.createElement('p');
+      p.textContent = phrases[i];
+      accuse.appendChild(p);
+    }
+    if (lien && /^https?:\/\//.test(lien.url)) {
+      var p2 = document.createElement('p');
+      var a = document.createElement('a');
+      a.href = lien.url;
+      a.textContent = lien.texte || lien.url;
+      a.rel = 'noopener';
+      p2.appendChild(a);
+      accuse.appendChild(p2);
+    }
+    accuse.hidden = false;
+  }
+
+  formulaire.addEventListener('submit', function (evenement) {
+    evenement.preventDefault();
+
+    var valeur = function (id) { return (document.getElementById(id).value || '').trim(); };
+    var demande = {
+      titre: valeur('titre'),
+      realisateur: valeur('realisateur'),
+      annee: valeur('annee'),
+      motif: valeur('motif'),
+      mail: valeur('mail'),
+      site_web: valeur('site_web')
+    };
+
+    if (demande.titre === '' || demande.realisateur === '') {
+      afficher('souci', [TEXTES.refusee]);
+      return;
+    }
+
+    bouton.disabled = true;
+    afficher('', [TEXTES.envoi]);
+
+    fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(demande)
+    }).then(function (reponse) {
+      return reponse.json().then(function (corps) {
+        return { statut: reponse.status, corps: corps };
+      }, function () {
+        return { statut: reponse.status, corps: {} };
+      });
+    }).then(function (resultat) {
+      var etat = (resultat.corps && resultat.corps.etat) || 'echec';
+      if (etat === 'enregistree') {
+        afficher('succes', [TEXTES.enregistree]);
+        formulaire.reset();
+      } else if (etat === 'deja_analysee') {
+        var titre = resultat.corps.titre;
+        var annee = resultat.corps.annee;
+        var etiquette = titre ? (annee ? titre + ' (' + annee + ')' : titre) : resultat.corps.url;
+        afficher('succes', [TEXTES.deja_analysee],
+                 { url: resultat.corps.url, texte: etiquette });
+      } else if (etat === 'refusee') {
+        afficher('souci', [TEXTES.refusee]);
+      } else {
+        afficher('souci', [TEXTES.echec]);
+      }
+    }).catch(function () {
+      afficher('souci', [TEXTES.echec]);
+    }).then(function () {
+      bouton.disabled = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>

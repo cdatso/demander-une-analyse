@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>File des demandes d'analyse</title>
+<!--
+  file.html -- la file publique du service "Demander une analyse".
+  Prototype d'apprentissage BKL-FOR-006 (fiche A de l'atelier AI-Shift du
+  26/08/2026).
+
+  Cette page lit LA VUE public.demandes_publiques, en LECTURE SEULE, avec
+  la clef PUBLIABLE. Elle ne lit JAMAIS la table demandes : la table
+  porte les colonnes mail et motif, qui ne sont pas publiables, et elle
+  n'a aucune policy -- une lecture par la clef publiable y rendrait de
+  toute facon une liste vide.
+
+  ZERO RESSOURCE EXTERNE : aucune feuille de style distante, aucun script
+  tiers, aucune police distante.
+
+  Le texte affiche au visiteur est du CONTENU : francais accentue. Le
+  CODE reste en ASCII pur.
+
+  Fichier SERVI par un serveur : UTF-8 SANS BOM (derogation nommee du
+  mandat rubrique 6).
+-->
+<style>
+  :root {
+    --encre: #1c1a17;
+    --encre-douce: #5b544c;
+    --fond: #faf8f5;
+    --carte: #ffffff;
+    --trait: #ddd6cc;
+    --accent: #6b4f2a;
+    --alerte: #8a3d2c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fond);
+    color: var(--encre);
+    font: 16px/1.6 Georgia, "Times New Roman", serif;
+    padding: 2.5rem 1.2rem 4rem;
+  }
+  main { max-width: 48rem; margin: 0 auto; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 1rem; font-weight: 600; }
+  .chapeau { color: var(--encre-douce); margin: 0 0 2rem; }
+  h2 {
+    font-size: 1.15rem;
+    margin: 2.2rem 0 0.2rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--trait);
+  }
+  .compte { color: var(--encre-douce); font-size: 0.85rem; font-weight: 400; }
+  .vide { color: var(--encre-douce); font-style: italic; font-size: 0.92rem; margin: 0.6rem 0 0; }
+  ul { list-style: none; padding: 0; margin: 0.8rem 0 0; }
+  li {
+    background: var(--carte);
+    border: 1px solid var(--trait);
+    border-radius: 4px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.6rem;
+  }
+  .titre { font-weight: 600; }
+  .meta { color: var(--encre-douce); font-size: 0.9rem; }
+  .facettes { font-size: 0.88rem; margin-top: 0.4rem; }
+  .facette {
+    display: inline-block;
+    border: 1px solid var(--trait);
+    border-radius: 999px;
+    padding: 0.05rem 0.55rem;
+    margin: 0.15rem 0.3rem 0.15rem 0;
+    color: var(--accent);
+  }
+  #message {
+    border-left: 3px solid var(--alerte);
+    background: var(--carte);
+    padding: 1rem 1.1rem;
+    margin: 0 0 1.5rem;
+  }
+  #message[hidden] { display: none; }
+  #message p { margin: 0 0 0.5rem; }
+  #message p:last-child { margin-bottom: 0; }
+  code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.88em;
+    background: var(--fond);
+    padding: 0.05rem 0.3rem;
+    border: 1px solid var(--trait);
+    border-radius: 3px;
+  }
+  footer { margin-top: 3rem; font-size: 0.85rem; color: var(--encre-douce); }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>File des demandes</h1>
+
+  <p class="chapeau">Les demandes reçues par le formulaire, classées par
+  étape. Les adresses électroniques et les textes libres des demandeurs
+  n'apparaissent pas ici. L'arbitrage est humain : rien ne change d'étape
+  tout seul.</p>
+
+  <div id="message" hidden></div>
+  <div id="sections"></div>
+
+  <footer>
+    <p>Prototype d'apprentissage — atelier du 26 août 2026. Lecture seule.</p>
+  </footer>
+
+</main>
+
+<script>
+// Code en ASCII pur (mandat rubrique 6). Les phrases affichees au
+// visiteur sont du CONTENU : elles sont en francais accentue.
+(function () {
+  'use strict';
+
+  // =====================================================================
+  //  DEUX EMPLACEMENTS A REMPLIR -- ILS SONT VOLONTAIREMENT VIDES.
+  // =====================================================================
+  //  La session qui a prepare ce depot ne detient AUCUNE clef et n'en a
+  //  demande aucune (arbitrage AH n.10). Les deux valeurs ci-dessous sont
+  //  posees PAR AH, au test en ligne, puis committees et redeployees.
+  //
+  //  SUPABASE_URL
+  //    Ou la trouver : Supabase -> Project Settings -> API -> Project URL.
+  //    Forme : "https://<reference-du-projet>.supabase.co" (sans barre
+  //    oblique finale).
+  //
+  //  SUPABASE_CLE_PUBLIABLE
+  //    Ou la trouver : Supabase -> Project Settings -> API keys -> la clef
+  //    PUBLIABLE (sb_publishable_...). C'est bien celle-la, et son role
+  //    EST d'etre exposee dans une page.
+  //    N'y mettez JAMAIS la clef secrete (sb_secret_...) : elle contourne
+  //    la RLS par son role, et elle donnerait a n'importe quel visiteur
+  //    l'acces aux colonnes mail et motif. La clef secrete vit dans les
+  //    variables d'environnement Netlify, et nulle part ailleurs.
+  // =====================================================================
+
+  var SUPABASE_URL = '';
+  var SUPABASE_CLE_PUBLIABLE = '';
+
+  // ---------------------------------------------------------------------
+  // Les six etapes, dans l'ordre de la file d'attente interne dont elles
+  // sont le calque (arbitrage AH n.4). Une etape sans demande s'affiche
+  // quand meme, vide : la file se lit d'un coup d'oeil.
+  // ---------------------------------------------------------------------
+  var ETAPES = [
+    { cle: 'proposee',     titre: 'Proposées', note: 'Reçues par le formulaire, en attente d’arbitrage.' },
+    { cle: 'a_traiter',    titre: 'À traiter', note: 'Retenues pour analyse.' },
+    { cle: 'scholar',      titre: 'File d’étude', note: 'Traitement supervisé, volet avancé.' },
+    { cle: 'candidat',     titre: 'Candidats', note: 'Repérées, à valider.' },
+    { cle: 'mise_de_cote', titre: 'Mises de côté', note: 'Non retenues pour l’instant.' },
+    { cle: 'traitee',      titre: 'Traitées', note: 'Analysées et publiées.' }
+  ];
+
+  var zoneMessage = document.getElementById('message');
+  var zoneSections = document.getElementById('sections');
+
+  function message(phrases, morceauxCode) {
+    zoneMessage.textContent = '';
+    for (var i = 0; i < phrases.length; i++) {
+      var p = document.createElement('p');
+      p.textContent = phrases[i];
+      zoneMessage.appendChild(p);
+    }
+    if (morceauxCode) {
+      for (var j = 0; j < morceauxCode.length; j++) {
+        var q = document.createElement('p');
+        var c = document.createElement('code');
+        c.textContent = morceauxCode[j];
+        q.appendChild(c);
+        zoneMessage.appendChild(q);
+      }
+    }
+    zoneMessage.hidden = false;
+  }
+
+  // FAIL-CLOSED : emplacements vides => un message CLAIR, jamais une page
+  // blanche, et aucune requete tentee.
+  if (SUPABASE_URL === '' || SUPABASE_CLE_PUBLIABLE === '') {
+    message([
+      'Configuration absente : cette page n’a pas encore reçu l’adresse du ' +
+      'projet et la clé publiable.',
+      'Ce n’est pas une panne — les deux emplacements sont laissés vides à ' +
+      'dessein, et se remplissent en tête du script de cette page :'
+    ], ['SUPABASE_URL', 'SUPABASE_CLE_PUBLIABLE']);
+    return;
+  }
+
+  function texte(valeur) {
+    return (valeur === null || valeur === undefined) ? '' : String(valeur);
+  }
+
+  // Toujours par textContent, jamais par innerHTML : le contenu vient de
+  // la base, ou il a ete ecrit par un inconnu -- il n'est jamais
+  // interprete comme du balisage.
+  function carte(demande) {
+    var li = document.createElement('li');
+
+    var ligneTitre = document.createElement('div');
+    ligneTitre.className = 'titre';
+    ligneTitre.textContent = texte(demande.titre) || '(sans titre)';
+    li.appendChild(ligneTitre);
+
+    var morceaux = [];
+    if (texte(demande.realisateur)) morceaux.push(texte(demande.realisateur));
+    if (demande.annee) morceaux.push(String(demande.annee));
+    if (texte(demande.created_at)) morceaux.push('reçue le ' + texte(demande.created_at).slice(0, 10));
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = morceaux.join(' · ');
+    li.appendChild(meta);
+
+    var q = demande.qualification;
+    if (q && typeof q === 'object') {
+      var facettes = [];
+      if (q.volet) facettes.push('volet : ' + texte(q.volet));
+      if (q.genreBase) facettes.push('genre : ' + texte(q.genreBase));
+      if (q.difficulte) facettes.push('difficulté : ' + texte(q.difficulte));
+      if (Array.isArray(q.sources_probables)) {
+        for (var i = 0; i < q.sources_probables.length; i++) {
+          facettes.push(texte(q.sources_probables[i]));
+        }
+      }
+      if (facettes.length > 0) {
+        var zone = document.createElement('div');
+        zone.className = 'facettes';
+        for (var j = 0; j < facettes.length; j++) {
+          var span = document.createElement('span');
+          span.className = 'facette';
+          span.textContent = facettes[j];
+          zone.appendChild(span);
+        }
+        li.appendChild(zone);
+      }
+    }
+    return li;
+  }
+
+  function rendre(demandes) {
+    zoneSections.textContent = '';
+    for (var i = 0; i < ETAPES.length; i++) {
+      var etape = ETAPES[i];
+      var lot = demandes.filter(function (d) { return d.statut === etape.cle; });
+
+      var h2 = document.createElement('h2');
+      h2.textContent = etape.titre + ' ';
+      var compte = document.createElement('span');
+      compte.className = 'compte';
+      compte.textContent = '(' + lot.length + ')';
+      h2.appendChild(compte);
+      zoneSections.appendChild(h2);
+
+      var note = document.createElement('p');
+      note.className = 'vide';
+      note.textContent = etape.note;
+      zoneSections.appendChild(note);
+
+      if (lot.length === 0) continue;
+      var ul = document.createElement('ul');
+      for (var j = 0; j < lot.length; j++) ul.appendChild(carte(lot[j]));
+      zoneSections.appendChild(ul);
+    }
+
+    var inconnues = demandes.filter(function (d) {
+      for (var k = 0; k < ETAPES.length; k++) if (ETAPES[k].cle === d.statut) return false;
+      return true;
+    });
+    if (inconnues.length > 0) {
+      message(['Attention : ' + inconnues.length + ' demande(s) portent une étape ' +
+               'inconnue de cette page. Rien n’est perdu, mais elles ne sont pas affichées.']);
+    }
+  }
+
+  var adresse = SUPABASE_URL.replace(/\/+$/, '') +
+    '/rest/v1/demandes_publiques?select=*&order=created_at.desc';
+
+  fetch(adresse, {
+    method: 'GET',
+    headers: {
+      apikey: SUPABASE_CLE_PUBLIABLE,
+      authorization: 'Bearer ' + SUPABASE_CLE_PUBLIABLE,
+      accept: 'application/json'
+    }
+  }).then(function (reponse) {
+    if (!reponse.ok) throw new Error('HTTP ' + reponse.status);
+    return reponse.json();
+  }).then(function (lignes) {
+    if (!Array.isArray(lignes)) throw new Error('reponse inattendue');
+    rendre(lignes);
+  }).catch(function (erreur) {
+    message([
+      'La file n’a pas pu être lue.',
+      'Cela peut venir de l’adresse du projet, de la clé publiable, ou du ' +
+      'fait que la vue publique n’existe pas encore. Détail technique :',
+      String(erreur && erreur.message ? erreur.message : erreur)
+    ]);
+  });
+})();
+</script>
+</body>
+</html>
