@@ -54,17 +54,21 @@ file.html  --GET-->  vue public.demandes_publiques (clé publiable, lecture seul
 
 ### Ce qui n'est PAS dans le périmètre, et qui est déclaré
 
-**La limitation de débit (*rate limiting*) est implémentée** depuis le
-durcissement production du 25/08/2026 (BKL-CIN-092) : règle Netlify
-`rateLimit` posée dans le `config` exporté de `qualifier.mjs`, **10
-requêtes par 60 secondes, agrégées par IP et domaine**, filtre appliqué
-**avant** l'invocation de la fonction — donc avant l'appel au modèle, le
-fetch du registre et l'insert. Au-delà, la requête est refusée avec un
-statut **429**. L'anti-abus complémentaire reste en place : **validation
-stricte** (plafonds de taille sur le corps et sur chaque champ) plus un
-**pot de miel**. Limite assumée : un adversaire distribué (adresses IP
-tournantes) n'est pas arrêté par cette règle — elle protège du cas réel :
-un robot, un script, une boucle oubliée.
+**La limitation de débit (*rate limiting*) côté code est posée, mais NON
+PROUVÉE ACTIVE** sur ce compte/plan à la date du 25/08/2026. Une règle
+Netlify `rateLimit` est déclarée dans le `config` exporté de
+`qualifier.mjs` (10 requêtes par 60 secondes, agrégées par IP et domaine,
+`path` requis par la doc Netlify — voir le commentaire d'en-tête du
+fichier) — mais elle ne produit aucun effet mesuré : le tableau de bord
+Netlify (*Web security*) affiche « Rate Limiting : Not set / No active
+rules », et une recette en ligne de 23 requêtes rapides n'a produit aucun
+statut 429. **La borne réelle et vérifiée** est le **plafond de dépense
+mensuel côté console Anthropic** (déjà posé par AH, hors de ce dépôt) :
+au-delà, l'API refuse (HTTP 400), et la fonction se dégrade proprement
+(502 « qualification indisponible »), sans jamais casser le service.
+L'anti-abus complémentaire reste en place : **validation stricte**
+(plafonds de taille sur le corps et sur chaque champ) plus un **pot de
+miel**.
 
 Hors périmètre également : toute page d'administration, et le lien depuis
 le site de production vers ce service.
