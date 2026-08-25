@@ -1,7 +1,9 @@
 ﻿# Test en ligne — « Demander une analyse » (fiche A)
 
-**Tes douze gestes, dans l'ordre.** Tout ce qui suit t'appartient : la
-session préparatoire s'est arrêtée aux **commits locaux**, sans `remote`.
+**Tes douze gestes, tels qu'exécutés.** Le service tourne en production
+depuis le 25/08/2026 (08h19) sous **https://demande.cdatso.be**. Ce guide
+reste la référence de ces gestes — utile pour un redéploiement à neuf ou
+un audit, pas pour une mise en ligne restant à faire.
 
 **La borne, avant tout** : la clé de l'API Claude et la clé **secrète**
 Supabase ne sortent **jamais** des variables d'environnement. Seule la clé

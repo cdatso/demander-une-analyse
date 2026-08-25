@@ -11,12 +11,14 @@
 # plus une function. Netlify installe lui-meme la dependance de
 # package.json au build.
 #
-# La route n'est PAS declaree par 'export const config = { path }' dans la
-# function : l'adresse reste donc l'adresse PAR DEFAUT,
+# qualifier.mjs DECLARE desormais un 'path' dans son config exporte : la
+# doc Netlify du rate limiting (verifiee le 25/08/2026, maj 30/07/2026)
+# l'exige pour que 'rateLimit' s'applique. Ce path est fixe LITTERALEMENT
+# a l'adresse PAR DEFAUT de la function,
 #   /.netlify/functions/qualifier
-# et c'est elle que le formulaire appelle, en relatif. Declarer un chemin
-# retirerait l'adresse par defaut -- il faudrait alors changer les deux
-# endroits a la fois.
+# -- la doc du routage confirme qu'un path egal a l'adresse par defaut est
+# redondant et ne change RIEN pour l'appelant. index.html continue donc
+# d'appeler cette meme adresse, en relatif, sans aucun changement.
 #
 # Fichier destine a une MACHINE : UTF-8 SANS BOM (derogation nommee du
 # mandat rubrique 6).

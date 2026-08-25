@@ -802,6 +802,43 @@ export async function repondre(req, deps) {
   return json(200, ACCUSE_ENREGISTREE, cors);
 }
 
+// ---------------------------------------------------------------------
+// LIMITATION DE DEBIT -- rateLimit (reco A-1.6 de PRG-017 ; arbitrage AH
+// du 25/08 sur le mecanisme path, BKL-CIN-092 (b)).
+// ---------------------------------------------------------------------
+// La doc Netlify (verifiee le 2026-08-25,
+// https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/,
+// mise a jour du 30/07/2026 visible en pied de page) l'ecrit en toutes
+// lettres : "You must also have a path for the function defined in this
+// object" -- un 'path' explicite est REQUIS pour que 'rateLimit'
+// s'applique. Ce point n'avait pas pu etre tranche par l'analyse
+// PRG-017 (a).
+//
+// Le path est fixe ICI, LITTERALEMENT, a l'adresse PAR DEFAUT deja
+// appelee par index.html (/.netlify/functions/qualifier). La meme doc
+// (reference routage des fonctions) confirme qu'un path egal a l'adresse
+// par defaut est redondant et ne change RIEN pour l'appelant -- ce n'est
+// pas une nouvelle route. index.html n'a donc PAS a changer.
+//
+// Valeurs (A-1.6) : 10 requetes / 60 secondes, agregees par IP ET
+// domaine, action "block" (429 par defaut). Filtre le PLUS EN AMONT --
+// AVANT l'invocation de cette function, donc avant l'appel au modele, le
+// fetch du registre et l'insert. Cible reelle : un robot, un script, une
+// boucle oubliee -- pas un adversaire distribue (IP tournantes), que
+// l'agregation par IP ne peut pas arreter.
+//
+// Le corps exact d'un refus 429 n'est PAS documente par Netlify (verifie
+// le 25/08) : il est mesure, et non suppose, au test en ligne (L5).
+export const config = {
+  path: '/.netlify/functions/qualifier',
+  rateLimit: {
+    windowLimit: 10,
+    windowSize: 60,
+    aggregateBy: ['ip', 'domain'],
+    action: 'block'
+  }
+};
+
 export default async function handler(req) {
   return repondre(req, depsReelles());
 }

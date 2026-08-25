@@ -5,9 +5,10 @@ s'il est **déjà analysé**, qualifie la demande dans des vocabulaires
 imposés, l'inscrit dans une table, et une page publique affiche la file.
 **AH arbitre ensuite**, comme aujourd'hui — mais avec une file visible.
 
-**Statut : prototype d'apprentissage**, préparatoire à l'atelier AI-Shift
-du 26 août 2026 (fiche A). Hors dépôts de production. Son sort — garder,
-migrer, éteindre — sera tranché plus tard, et pas par ce dépôt.
+**Statut : service du site, EN PRODUCTION depuis le 25/08/2026 (08h19)**,
+sous l'adresse canonique `https://demande.cdatso.be`. Provenance :
+prototype d'apprentissage BKL-FOR-006, préparé pour l'atelier AI-Shift du
+26 août 2026 (fiche A), passé en production sous l'item BKL-CIN-092.
 
 ## La chaîne
 
@@ -53,13 +54,17 @@ file.html  --GET-->  vue public.demandes_publiques (clé publiable, lecture seul
 
 ### Ce qui n'est PAS dans le périmètre, et qui est déclaré
 
-**La limitation de débit (*rate limiting*) est hors périmètre.** Elle
-n'est ni implémentée, ni simulée, ni promise. L'anti-abus livré est la
-**validation stricte** (plafonds de taille sur le corps et sur chaque
-champ) plus un **pot de miel**. Conséquence assumée : un robot déterminé
-peut répéter des requêtes valides, et chacune coûte un appel de modèle.
-Sur un prototype à un seul formulaire, non référencé (`noindex`), le
-risque est accepté ; sur un service durable, il ne le serait pas.
+**La limitation de débit (*rate limiting*) est implémentée** depuis le
+durcissement production du 25/08/2026 (BKL-CIN-092) : règle Netlify
+`rateLimit` posée dans le `config` exporté de `qualifier.mjs`, **10
+requêtes par 60 secondes, agrégées par IP et domaine**, filtre appliqué
+**avant** l'invocation de la fonction — donc avant l'appel au modèle, le
+fetch du registre et l'insert. Au-delà, la requête est refusée avec un
+statut **429**. L'anti-abus complémentaire reste en place : **validation
+stricte** (plafonds de taille sur le corps et sur chaque champ) plus un
+**pot de miel**. Limite assumée : un adversaire distribué (adresses IP
+tournantes) n'est pas arrêté par cette règle — elle protège du cas réel :
+un robot, un script, une boucle oubliée.
 
 Hors périmètre également : toute page d'administration, et le lien depuis
 le site de production vers ce service.
@@ -108,13 +113,16 @@ leurs plans gratuits.
 
 ## Mise en ligne
 
-Elle n'est pas faite : ce dépôt s'arrête à des **commits locaux**, sans
-`remote`. Les gestes de mise en ligne — dépôt GitHub, site Netlify,
-sous-domaine, variables d'environnement, SQL joué, les deux emplacements
-de `file.html`, et les deux soumissions du critère de sortie — sont
-décrits dans **`GUIDE-TEST-EN-LIGNE.md`**, dans l'ordre.
+Elle est **faite** : le service tourne en production depuis le
+25/08/2026 (08h19), sous l'adresse canonique **https://demande.cdatso.be**.
+Les gestes de mise en ligne — dépôt GitHub, site Netlify, sous-domaine,
+variables d'environnement, SQL joué, les deux emplacements de
+`file.html`, et les deux soumissions du critère de sortie — restent
+décrits dans **`GUIDE-TEST-EN-LIGNE.md`**, dans l'ordre, à titre de
+référence pour un futur redéploiement à neuf.
 
 ---
 
-*Prototype BKL-FOR-006. Aucune analyse n'est produite par ce service :
-le site publie sous mandat et responsabilité humaine.*
+*Service du site — provenance BKL-FOR-006, en production sous
+BKL-CIN-092. Aucune analyse n'est produite par ce service : le site
+publie sous mandat et responsabilité humaine.*
