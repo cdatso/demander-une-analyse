@@ -10,7 +10,7 @@ Supabase ne sortent **jamais** des variables d'environnement. Seule la clé
 **publiable** entre dans `file.html` : c'est son rôle.
 
 **① Le dépôt.** Crée `cdatso/demander-une-analyse` sur GitHub (public),
-puis depuis `C:\Users\cdats\Claude\Projects\demander-une-analyse` :
+puis depuis `C:\Users\cdats\Claude\SRV\demander-une-analyse` :
 `git remote add origin <URL>` puis `git push -u origin master`.
 
 **② L'autorisation GitHub → Netlify.** L'installation Netlify est limitée

@@ -107,7 +107,7 @@ const BASE_PUBLIQUE_PAR_DEFAUT = 'https://www.cdatso.be/analyses-de-films';
 
 // --- Les vocabulaires imposes ----------------------------------------
 // RELEVES A LA MAIN le 2026-08-24 dans
-// Projects\analyses-de-films\assets\vocabulaires.js -- ce sont EUX, et
+// CIN\analyses-de-films\assets\vocabulaires.js -- ce sont EUX, et
 // pas une memoire de modele, qui entrent dans le schema de sortie.
 // P-11 : le modele CHOISIT dans ces listes et n'invente jamais ;
 // P-10 : toute valeur absente de ces listes est ramenee a null PAR LE
