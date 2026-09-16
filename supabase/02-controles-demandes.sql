@@ -7,7 +7,7 @@
 -- FORME CONSOLIDEE, reprise de FOR-003 (02-controles.sql, gate AH du
 -- 20/08/2026) et de FOR-004 : le SQL Editor de Supabase n'affiche que le
 -- resultat de la DERNIERE requete d'un script. Une requete par controle
--- n'afficherait donc que le dernier. Les DOUZE controles rendent ici UN
+-- n'afficherait donc que le dernier. Les TREIZE controles rendent ici UN
 -- SEUL tableau -- colonnes ordre / controle / mesure / attendu -- et
 -- chaque controle porte AUSSI son attendu en commentaire, juste au-dessus
 -- de sa ligne, comme l'exige le mandat.
@@ -18,7 +18,8 @@
 -- A jouer TEL QUEL (tout selectionner, Run). Joue sur une table vide, il
 -- rend des zeros aux controles de contenu : c'est correct et cela se lit
 -- -- le controle 5 a 0 ligne signifie "aucune demande recue", pas
--- "panne". Les controles 0 a 4 et 10, eux, sont vrais des la creation.
+-- "panne". Les controles 0 a 4, 10 et 12, eux, sont vrais des la
+-- creation.
 --
 -- CE QUE CE SCRIPT NE PROUVE PAS, et qui se prouve ailleurs : que la
 -- clef PUBLIABLE lit bien la vue et ne lit PAS la table. Cette mesure
@@ -161,6 +162,41 @@ select 11,
          limit 1),
        'le film absent, proposee, AH, false, qualification renseignee'
 
+union all
+select 12,
+       'droits d anon et d authenticated (ecritures / lecture publique)',
+       -- attendu : 0 / true (BKL-CIN-096 (b) lot 0, RISKLOG R-023).
+       -- (i) avant la barre : nombre de privileges INSERT, UPDATE, DELETE,
+       -- TRUNCATE, REFERENCES, TRIGGER detenus par anon ou authenticated
+       -- sur la table demandes ET sur la vue demandes_publiques, PLUS le
+       -- SELECT de ces deux roles sur la TABLE, PLUS le SELECT
+       -- d'authenticated sur la VUE (arbitrage AH, option 1) -> 0. Sinon
+       -- la clef publiable peut ECRIRE par la vue (simple, donc
+       -- modifiable, et executee avec les droits de postgres) : la borne
+       -- "AH seul change une etape" tombe.
+       -- (ii) apres la barre : anon garde SELECT sur la vue -> true. Sinon
+       -- file.html ne lit plus rien et la file publique est vide.
+       -- MESURE par has_table_privilege, qui compte AUSSI les droits
+       -- herites d'un role et ceux accordes a PUBLIC.
+       -- information_schema.role_table_grants (la requete G-1, bloc
+       -- optionnel plus bas) ne voit que les droits DIRECTS : G-1 reste la
+       -- lecture croisee, pas le controle.
+       -- CE CONTROLE DEVIENDRA FAUX PAR CONSTRUCTION au lot 2 (page
+       -- privee) si l'architecture W2 accorde des droits a authenticated
+       -- sur la table : il s'amendera dans ce lot-la, pas avant.
+       (select count(*)::text
+          from (values ('anon'), ('authenticated')) as r(role)
+         cross join (values ('public.demandes'), ('public.demandes_publiques')) as o(objet)
+         cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'),
+                            ('REFERENCES'), ('TRIGGER'), ('SELECT')) as p(privilege)
+         where has_table_privilege(r.role::name, o.objet, p.privilege)
+           and not (p.privilege = 'SELECT'
+                    and o.objet = 'public.demandes_publiques'
+                    and r.role = 'anon'))
+       || ' / ' ||
+       has_table_privilege('anon'::name, 'public.demandes_publiques', 'SELECT')::text,
+       '0 / true'
+
 order by ordre;
 
 -- ---------------------------------------------------------------------
@@ -192,4 +228,35 @@ order by ordre;
 -- from public.demandes
 -- order by id desc
 -- limit 10;
+--
+-- G-1 -- LECTURE CROISEE du controle 12 (analyse CIN-096 (a) L2.0) :
+-- les droits DIRECTS d'anon et d'authenticated sur la vue et la table.
+-- Attendu : une seule ligne, demandes_publiques | anon | SELECT. Toute
+-- autre ligne se signale. (Ne voit ni les droits herites ni ceux de
+-- PUBLIC : c'est le controle 12 qui les compte.)
+--
+-- select table_name, grantee, privilege_type
+--   from information_schema.role_table_grants
+--  where table_schema = 'public'
+--    and table_name in ('demandes_publiques', 'demandes')
+--    and grantee in ('anon', 'authenticated')
+--  order by table_name, grantee, privilege_type;
+--
+-- Les droits accordes PAR DEFAUT aux objets FUTURS du schema public
+-- (pg_default_acl). type_objet : r = tables ET vues, S = sequences,
+-- f = fonctions, T = types. Une entree qui donne a anon ou a
+-- authenticated des lettres d'ecriture (a = INSERT, w = UPDATE,
+-- d = DELETE, D = TRUNCATE, x = REFERENCES, t = TRIGGER) signifie qu'un
+-- drop puis create de la vue ou de la table RETABLIRAIT l'exposition :
+-- il faudrait alors rejouer 03-droits-vue-publique.sql apres tout
+-- create. Ce script MESURE ; il ne modifie aucun droit par defaut.
+--
+-- select pg_get_userbyid(d.defaclrole) as proprietaire,
+--        coalesce(n.nspname, '(tous schemas)') as schema,
+--        d.defaclobjtype as type_objet,
+--        d.defaclacl as droits
+--   from pg_default_acl d
+--   left join pg_namespace n on n.oid = d.defaclnamespace
+--  where n.nspname = 'public' or d.defaclnamespace = 0
+--  order by proprietaire, schema, type_objet;
 -- ---------------------------------------------------------------------

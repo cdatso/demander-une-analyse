@@ -102,8 +102,15 @@ create index demandes_created_idx on public.demandes (created_at desc);
 -- Consequence pratique a l'atelier : dans le Table Editor de Supabase,
 -- les lignes RESTENT VISIBLES (le tableau de bord passe par une voie
 -- privilegiee), mais toute lecture de la TABLE par l'API avec la clef
--- publiable rendra une liste vide. Ce n'est pas une panne : c'est le
--- controle de confidentialite du guide, geste 11.
+-- publiable rend une ERREUR DE DROIT (code 42501, "permission denied
+-- for table demandes") -- et non plus une liste vide, depuis que la fin
+-- de ce script retire a anon et authenticated leurs droits par defaut
+-- (BKL-CIN-096 (b) lot 0, 16/09/2026). C'est MIEUX : la RLS sans policy
+-- ne filtrait que les LIGNES, et une policy ajoutee plus tard pour ces
+-- roles les aurait rouvertes ; le revoke ferme la COMMANDE elle-meme,
+-- et l'erreur DIT que la porte est close au lieu de rendre un vide
+-- ambigu. Ce n'est pas une panne : c'est le controle de confidentialite
+-- du guide, geste 11.
 
 alter table public.demandes enable row level security;
 
@@ -150,3 +157,20 @@ select id,
 -- SELECT seulement : aucun insert, aucune mise a jour, aucune
 -- suppression par cette voie.
 grant select on public.demandes_publiques to anon;
+
+-- ---------------------------------------------------------------------
+-- DROITS PAR DEFAUT RETIRES (BKL-CIN-096 (b) lot 0, 16/09/2026 ; R-023).
+-- ---------------------------------------------------------------------
+-- Supabase accorde par defaut a anon et authenticated des droits
+-- d'ECRITURE sur les objets du schema public. La vue ci-dessus est
+-- simple, donc automatiquement modifiable, et contourne la RLS : sans ces
+-- revoke, la clef publiable de file.html peut ecrire dans la table PAR
+-- LA VUE. Motif detaille : 03-droits-vue-publique.sql.
+--
+-- Ce bloc sert un REDEPLOIEMENT A NEUF. Sur la base en production, on
+-- joue 03-droits-vue-publique.sql -- JAMAIS ce script-ci, dont le drop
+-- en tete detruit toutes les demandes.
+revoke insert, update, delete, truncate, references, trigger
+    on public.demandes_publiques from anon, authenticated;
+revoke select on public.demandes_publiques from authenticated;
+revoke all on public.demandes from anon, authenticated;

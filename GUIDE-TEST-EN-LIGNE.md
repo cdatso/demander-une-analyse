@@ -74,16 +74,34 @@ préparatoire n'a **pas pu** faire. Avec la clé **publiable** :
 curl -s "<URL-DU-PROJET>/rest/v1/demandes?select=*" -H "apikey: <CLE-PUBLIABLE>" -H "Authorization: Bearer <CLE-PUBLIABLE>"
 ```
 
-**Attendu : `[]`** — la table est close, aucune ligne. Puis :
+**Attendu : une erreur de droit**, jamais une liste — corps JSON portant
+`"code":"42501"` (« *permission denied for table demandes* »), statut
+HTTP **401** (PostgREST : 42501 → « *if authenticated 403, else 401* »,
+https://docs.postgrest.org/en/stable/references/errors.html, lu le
+16/09/2026 ; Supabase note que ces erreurs sont « *often reported by
+clients as 401 or 403* »,
+https://supabase.com/docs/guides/troubleshooting/database-api-42501-errors,
+lu le 16/09/2026 : **le code `42501` fait foi**, le statut peut être 403).
+La table est close **par ses droits**, et non plus seulement par la RLS :
+`supabase/03-droits-vue-publique.sql` retire à `anon` et `authenticated`
+leurs droits par défaut (BKL-CIN-096 (b) lot 0). Avant ce script,
+l'attendu était `[]`. Puis :
 
 ```
 curl -s "<URL-DU-PROJET>/rest/v1/demandes_publiques?select=*" -H "apikey: <CLE-PUBLIABLE>" -H "Authorization: Bearer <CLE-PUBLIABLE>"
 ```
 
 **Attendu** : les demandes, **sans `mail` ni `motif`**. Si le premier
-rend des lignes, ou si le second est vide, **arrête-toi et signale-le** :
-n'ouvre **pas** une policy de lecture sur la table pour compenser — ce
-serait exposer l'adresse du demandeur et son texte libre.
+rend des lignes **ou `[]`**, ou si le second est vide, **arrête-toi et
+signale-le** : n'ouvre **pas** une policy de lecture sur la table pour
+compenser — ce serait exposer l'adresse du demandeur et son texte libre.
+
+**Puis la contre-lecture en ÉCRITURE** : ces deux lectures ne prouvent pas
+que la clé publiable ne peut rien **modifier**. Joue la procédure
+`PROCEDURE-CONTRE-LECTURE-ECRITURE-CIN-096-B-LOT0.md` (dossier de l'item,
+`claude-config\mandats\CIN\BKL-CIN-096\`) : des tentatives d'écriture
+construites pour ne toucher aucune ligne, dont l'attendu est une **erreur
+de droit partout**.
 
 **⑫ Arrêter le service.** Netlify → *Site configuration* → *Stop builds*
 coupe les déploiements ; supprimer le site coupe tout. La table survit :

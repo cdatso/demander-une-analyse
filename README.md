@@ -45,6 +45,18 @@ file.html  --GET-->  vue public.demandes_publiques (clé publiable, lecture seul
   inconnu.** Il vit dans un bloc de données délimité et échappé, jamais
   dans la section d'instructions du prompt, qui énonce la règle 11 de la
   charte en toutes lettres.
+- **La clé publiable ne peut rien écrire, ni par la vue ni par la
+  table.** Depuis le 16/09/2026 (BKL-CIN-096 (b) lot 0, risque R-023),
+  la base retire aux rôles `anon` et `authenticated` les droits
+  d'écriture que Supabase leur accorde par défaut : la vue
+  `demandes_publiques`, simple donc modifiable et exécutée avec les droits
+  de son propriétaire, ne garde que `SELECT` pour `anon` ; la table
+  `demandes` ne leur accorde plus rien. Script de production :
+  `supabase/03-droits-vue-publique.sql` (ni `drop` ni `create` — **jamais**
+  `01`, qui détruit la table) ; preuve : contrôle n°12 de
+  `supabase/02-controles-demandes.sql`. C'est la condition de la première
+  borne : sans elle, quiconque lit la clé dans `file.html` pourrait
+  changer une étape, et « AH seul » ne serait qu'une intention.
 - **Aucune clé dans ce dépôt.** Tout par variables d'environnement
   Netlify. Les deux emplacements de `file.html` sont livrés **vides** :
   c'est l'attendu, et le contrôle de propreté le vérifie.
