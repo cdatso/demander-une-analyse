@@ -12,9 +12,10 @@
 
   Cette page lit LA VUE public.demandes_publiques, en LECTURE SEULE, avec
   la clef PUBLIABLE. Elle ne lit JAMAIS la table demandes : la table
-  porte les colonnes mail et motif, qui ne sont pas publiables, et elle
-  n'a aucune policy -- une lecture par la clef publiable y rendrait de
-  toute facon une liste vide.
+  porte les colonnes mail et motif, qui ne sont pas publiables, elle
+  n'a aucune policy, et depuis le 16/09/2026 (BKL-CIN-096 lot 0, script
+  03) la clef publiable n'y a plus AUCUN droit : une lecture directe rend
+  une erreur de droit (42501), et non plus une liste vide.
 
   ZERO RESSOURCE EXTERNE : aucune feuille de style distante, aucun script
   tiers, aucune police distante.
