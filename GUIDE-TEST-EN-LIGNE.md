@@ -62,7 +62,7 @@ peur`, `Henri-Georges Clouzot`, `1953`. **Attendu** : accusé
 s'est arrêté.
 
 **⑩ Les contrôles.** *SQL Editor* → `supabase/02-controles-demandes.sql`
-→ *Run*. Un seul tableau, douze lignes, colonnes *mesure* et *attendu* :
+→ *Run*. Un seul tableau, treize lignes (douze jusqu'au 16/09/2026, contrôle n°12 ajouté par BKL-CIN-096 lot 0), colonnes *mesure* et *attendu* :
 la table est certifiée quand chaque mesure satisfait son attendu. Le
 contrôle 5 doit montrer **une** demande, pas deux — les Tontons ne
 s'insèrent pas.
