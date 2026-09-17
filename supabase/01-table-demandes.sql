@@ -37,22 +37,36 @@ drop table if exists public.demandes;
 -- table : le drop en tete suffit, et le script repart de zero a coup sur.
 -- C'est le reglage qui compte a l'atelier, ou l'on rejoue.
 --
--- LES SIX VALEURS de statut sont le CALQUE des six sections de la file
--- d'attente films-a-traiter.md (arbitrage AH n.4 du 23/08/2026),
--- section par section :
+-- LES SEPT VALEURS de statut. Les SIX PREMIERES sont nees comme le
+-- CALQUE des six sections de la file d'attente films-a-traiter.md
+-- (arbitrage AH n.4 du 23/08/2026). Ce calque est ROMPU par A7
+-- (BKL-CIN-096, 16/09/2026) : la table devient la source, le fichier
+-- n'est plus une file. Les six valeurs en gardent leur origine :
 --
---   'proposee'     <- "Proposes (tiers -- a valider par toi)"
---                     C'EST LE DEFAUT A L'INSERT : une demande venue du
---                     formulaire est une proposition de tiers, et le
---                     critere de sortie de la fiche l'exige.
---   'a_traiter'    <- "A traiter"
---   'scholar'      <- "File Scholar (traitement SUPERVISE volet avance)"
---   'candidat'     <- "Candidats (inventaire CSV -- a valider par AH)"
---   'mise_de_cote' <- "Mis de cote"
---   'traitee'      <- "Traites"
+--   'proposee'           <- "Proposes (tiers -- a valider par toi)"
+--                           C'EST LE DEFAUT A L'INSERT : une demande
+--                           venue du formulaire est une proposition de
+--                           tiers, et le critere de sortie de la fiche
+--                           l'exige.
+--   'a_traiter'          <- "A traiter"
+--   'publication_pilote' <- SEPTIEME VALEUR, sans section d'origine :
+--                           A10 et Q2 (BKL-CIN-096, 16/09/2026). Posee
+--                           par AH seul, elle autorise une publication
+--                           automatique NON RELUE sur la SURFACE PILOTE
+--                           SEULEMENT ; en production, la publication
+--                           reste un gate prononce en fenetre. Un statut
+--                           n'est jamais un gate de production (R-009,
+--                           R-010, R-011). Une demande publiee par le
+--                           pilote RESTE a cette valeur.
+--   'scholar'            <- "File Scholar (traitement SUPERVISE volet avance)"
+--   'candidat'           <- "Candidats (inventaire CSV -- a valider par AH)"
+--   'mise_de_cote'       <- "Mis de cote"
+--   'traitee'            <- "Traites"
 --
 -- La fiche n'en nommait que cinq ; la sixieme ('candidat') vient du
 -- calque, et son nom est un reglage declare du redacteur du mandat.
+-- Sur la base en production, la septieme s'ajoute par
+-- 04-etape-publication-pilote.sql -- JAMAIS en rejouant ce script.
 --
 -- BORNE : l'IA ne pose JAMAIS un statut. Le champ n'est pas dans son
 -- schema de sortie ; le code insere 'proposee' et AH seul le change, a
@@ -71,7 +85,7 @@ create table public.demandes (
     qualification jsonb null,
     statut        text not null default 'proposee'
                   constraint demandes_statut_check check (statut in (
-                      'proposee', 'a_traiter', 'scholar',
+                      'proposee', 'a_traiter', 'publication_pilote', 'scholar',
                       'candidat', 'mise_de_cote', 'traitee')),
     decideur      text not null default 'AH'
 );

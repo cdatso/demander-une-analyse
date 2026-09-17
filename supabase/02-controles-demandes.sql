@@ -98,12 +98,16 @@ select 6,
 
 union all
 select 7,
-       'statuts hors des six valeurs',
+       'statuts hors des sept valeurs',
        -- attendu : 0 -- la contrainte demandes_statut_check le garantit ;
-       -- ce controle verifie qu'elle est bien en place et non desactivee
+       -- ce controle verifie qu'elle est bien en place et non desactivee.
+       -- Sept valeurs depuis BKL-CIN-096 (b) lot 1 : publication_pilote
+       -- (A10, Q2, 16/09/2026), jouee en production par
+       -- 04-etape-publication-pilote.sql.
        (select count(*)::text from public.demandes
-         where statut not in ('proposee', 'a_traiter', 'scholar',
-                              'candidat', 'mise_de_cote', 'traitee')),
+         where statut not in ('proposee', 'a_traiter', 'publication_pilote',
+                              'scholar', 'candidat', 'mise_de_cote',
+                              'traitee')),
        '0'
 
 union all

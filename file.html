@@ -144,13 +144,19 @@
   var SUPABASE_CLE_PUBLIABLE = 'sb_publishable_p1S5BYDF4W2KOvOcSvxRQQ_15W0dDx5';
 
   // ---------------------------------------------------------------------
-  // Les six etapes, dans l'ordre de la file d'attente interne dont elles
-  // sont le calque (arbitrage AH n.4). Une etape sans demande s'affiche
-  // quand meme, vide : la file se lit d'un coup d'oeil.
+  // Les sept etapes. Les six premieres viennent de l'ancienne file
+  // d'attente interne, dont elles etaient le calque (arbitrage AH n.4).
+  // La septieme, publication_pilote (A10 et Q2, 16/09/2026), suit
+  // a_traiter : posee par AH seul, elle autorise une publication
+  // automatique NON RELUE sur la SURFACE PILOTE SEULEMENT -- jamais un
+  // gate de production. Une demande publiee par le pilote RESTE a cette
+  // etape. Une etape sans demande s'affiche quand meme, vide : la file se
+  // lit d'un coup d'oeil.
   // ---------------------------------------------------------------------
   var ETAPES = [
     { cle: 'proposee',     titre: 'Proposées', note: 'Reçues par le formulaire, en attente d’arbitrage.' },
     { cle: 'a_traiter',    titre: 'À traiter', note: 'Retenues pour analyse.' },
+    { cle: 'publication_pilote', titre: 'Essai de publication automatique', note: 'Retenues pour un essai hors du site, non relu.' },
     { cle: 'scholar',      titre: 'File d’étude', note: 'Traitement supervisé, volet avancé.' },
     { cle: 'candidat',     titre: 'Candidats', note: 'Repérées, à valider.' },
     { cle: 'mise_de_cote', titre: 'Mises de côté', note: 'Non retenues pour l’instant.' },
