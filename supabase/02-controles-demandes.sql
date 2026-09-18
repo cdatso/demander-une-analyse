@@ -365,13 +365,20 @@ select 15,
 
 union all
 select 16,
-       'les DEUX declencheurs de demandes',
-       -- attendu : 2 | demandes_journal_trg, demandes_plafond_trg
-       -- (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle NEUF).
-       -- Sans le premier, aucune trace : le critere E2 du bilan de
-       -- promotion du pilote devient improuvable. Sans le second, le
-       -- plafond de creation n'existe plus -- et la page seule ne garde
-       -- rien, puisque l API reste ouverte a la session d AH (R-026).
+       'les TROIS declencheurs de demandes',
+       -- attendu : 3 | demandes_journal_trg, demandes_plafond_instruction_trg,
+       --               demandes_plafond_trg
+       -- (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle NEUF, porte a TROIS
+       -- le meme jour apres l'audit du greffe.)
+       -- Sans le journal, aucune trace : le critere E2 du bilan de
+       -- promotion du pilote devient improuvable.
+       -- Sans le plafond de LIGNE, aucun refus -- et la page seule ne
+       -- garde rien, puisque l API reste ouverte a la session d AH (R-026).
+       -- Sans le declencheur d INSTRUCTION, le plafond est contournable
+       -- par une insertion EN LOT : les declencheurs 'after' de niveau
+       -- ligne ne jouant qu'a la FIN de l'instruction, toutes les lignes
+       -- d'un meme POST liraient le meme compte. C'est lui qui remet a
+       -- zero le compteur de l'instruction.
        -- Les NOMS sont affiches : un compte juste avec de mauvais noms
        -- serait un faux vert.
        (select count(*)::text from pg_trigger
@@ -380,7 +387,7 @@ select 16,
        coalesce((select string_agg(tgname, ', ' order by tgname) from pg_trigger
                   where tgrelid = 'public.demandes'::regclass and not tgisinternal),
                 '(aucun)'),
-       '2 | demandes_journal_trg, demandes_plafond_trg'
+       '3 | demandes_journal_trg, demandes_plafond_instruction_trg, demandes_plafond_trg'
 
 union all
 select 17,
@@ -409,24 +416,39 @@ select 18,
        -- attendu : true (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle
        -- NEUF). LIRE LA LIMITE DE CE CONTROLE AVANT DE LE CROIRE.
        --
-       -- CE QU IL MESURE : que la fonction du plafond porte bien sa garde
-       -- de sortie -- "auth.uid() is null -> return new". C est un
-       -- controle de MENTION, pas de VALEUR : il lit le texte de la
-       -- fonction, il ne la fait pas jouer.
-       -- POURQUOI PAS MIEUX ICI : 02 est un script de LECTURE. Eprouver
-       -- le plafond pour de vrai demande une INSERTION, et ce fichier
-       -- n ecrit rien -- c est sa nature et elle ne change pas.
-       -- OU EST LA MESURE DE VALEUR : au bloc optionnel "P-1" en bas de
-       -- ce fichier, a jouer SEPAREMENT par AH. Il insere puis ROLLBACK :
-       -- rien ne reste.
-       -- CE QUE LA GARDE PROTEGE : qualifier.mjs ecrit decideur='AH' pour
-       -- TOUTE demande du formulaire public (l. 790). Un plafond qui
-       -- compterait cette colonne refuserait la onzieme demande PUBLIQUE
-       -- du jour et plafonnerait le SERVICE en production. La garde est
-       -- ce qui rend cela impossible : sans compte authentifie, on sort
-       -- avant de compter quoi que ce soit.
+       -- CE QU IL MESURE, en TROIS points (le troisieme ajoute le
+       -- 18/09/2026 apres l'audit du greffe) :
+       --   (i)   la garde de sortie est la : "v_moi is null -> return new" ;
+       --   (ii)  le texte ne contient PAS 'decideur' -- sinon le plafond
+       --         compterait les demandes PUBLIQUES et plafonnerait le
+       --         service en production (qualifier.mjs l. 790 ecrit
+       --         decideur='AH' pour TOUTE demande du formulaire) ;
+       --   (iii) le texte ne contient PAS 'current_user'. C EST LE
+       --         CONTROLE QUI MANQUAIT. Dans une fonction
+       --         'security definer', current_user vaut le PROPRIETAIRE de
+       --         la fonction, jamais l appelant (documentation
+       --         PostgreSQL, System Information Functions : "It also
+       --         changes during the execution of functions with the
+       --         attribute SECURITY DEFINER"). Une garde
+       --         "current_user <> 'authenticated' -> return new" est donc
+       --         VRAIE A CHAQUE APPEL : la fonction sort avant de
+       --         compter, le plafond ne refuse RIEN, et tous les autres
+       --         controles restent VERTS sur un plafond mort. C est
+       --         exactement ce qui s est produit le 18/09.
+       --
+       -- C est un controle de MENTION, pas de VALEUR : il lit le TEXTE de
+       -- la fonction, il ne la fait pas jouer. 02 est un script de
+       -- LECTURE, et il le reste.
+       -- LES MESURES DE VALEUR sont les deux blocs optionnels du bas :
+       --   P-1 -- le plafond LAISSE PASSER le role serveur ;
+       --   P-2 -- le plafond REFUSE la onzieme creation de la page, dans
+       --          les DEUX formes (onze instructions, et une instruction
+       --          de onze lignes).
+       -- P-1 SEUL NE SUFFIT PAS : un plafond mort le passe haut la main.
+       -- C est P-2 qui prouve qu il mord.
        (select (pg_get_functiondef(p.oid) like '%v_moi is null%'
-                and pg_get_functiondef(p.oid) not like '%decideur%')::text
+                and pg_get_functiondef(p.oid) not like '%decideur%'
+                and pg_get_functiondef(p.oid) not like '%current_user%')::text
           from pg_proc p
           join pg_namespace n on n.oid = p.pronamespace
          where n.nspname = 'prive' and p.proname = 'plafond_creation_page'),
@@ -534,4 +556,114 @@ order by ordre;
 -- select count(*) as restes
 --   from public.demandes
 --  where titre = 'P-1 controle du plafond -- A ROLLBACK';
+--
+-- ---------------------------------------------------------------------
+-- P-2 -- LA MESURE DU REFUS. BKL-CIN-096 (b) lot 2, 18/09/2026, apres
+-- l'audit du greffe. A jouer SEPAREMENT par AH, et EN DEUX FOIS.
+--
+-- POURQUOI P-1 NE SUFFIT PAS -- et c'est toute la lecon du jour.
+-- P-1 prouve que le plafond LAISSE PASSER le role serveur. Un plafond
+-- MORT passe cette epreuve haut la main. Le 18/09, une garde fautive
+-- ('current_user' dans une fonction 'security definer') a rendu le
+-- plafond inerte : P-1 etait vert, le controle n.18 etait vert, les
+-- dix-neuf lignes etaient vertes, et RIEN ne refusait quoi que ce soit.
+-- Une garde se prouve des DEUX cotes : ce qu'elle laisse passer, ET ce
+-- qu'elle refuse. P-2 est le second cote.
+--
+-- CE QUE P-2 FAIT : il se place dans le ROLE et le JETON de la page
+-- privee, puis tente onze creations. La onzieme doit etre REFUSEE.
+-- Tout est dans une transaction terminee par 'rollback' : ni les lignes
+-- ni leur journal ne restent (le compteur d'instruction non plus, il est
+-- local a la transaction).
+--
+-- !!! SUBSTITUTION : la chaine a remplacer est formee du caractere '<',
+-- !!! puis de UUID-DE-AH, puis du caractere '>' -- ecrite ici en
+-- !!! morceaux EXPRES pour que la consigne ne soit pas appariee. Elle
+-- !!! apparait TROIS fois dans les blocs ci-dessous. Substitue dans
+-- !!! l'EDITEUR, et N'ENREGISTRE PAS ce fichier : le depot est PUBLIC.
+--
+-- !!! JOUE LE CAS A, PUIS LE CAS B, SEPAREMENT. L'erreur attendue avorte
+-- !!! la transaction : tout ce qui suivrait dans le meme envoi echouerait
+-- !!! pour cette raison-la, et non pour la bonne.
+--
+-- =====================================================================
+-- CAS A -- ONZE INSTRUCTIONS SEPAREES (le cas de la page, qui insere une
+-- ligne a la fois). Attendu : les dix premieres passent, la ONZIEME leve
+-- 'Plafond atteint : 10 creations par jour depuis la page privee (10
+-- deja journalisee(s), 0 dans cette instruction)...' (check_violation).
+-- =====================================================================
+--
+-- begin;
+-- set local role authenticated;
+-- select set_config('request.jwt.claims',
+--                   '{"sub":"<UUID-DE-AH>","role":"authenticated"}', true);
+--
+-- -- (0) AUTO-CONTROLE, a lire AVANT d'aller plus loin.
+-- --     auth.uid() lit 'request.jwt.claim.sub' d'abord, puis
+-- --     'request.jwt.claims'::jsonb->>'sub' (definition Supabase,
+-- --     verifiee le 18/09/2026). La forme ci-dessus couvre le second
+-- --     chemin. SI jeton_lu EST false, ARRETE-TOI : les insertions qui
+-- --     suivent s'executeraient avec auth.uid() NUL, le plafond sortirait
+-- --     par sa garde, les onze passeraient -- et P-2 ne prouverait RIEN.
+-- --     Un controle qui peut passer sans rien mesurer est pire que pas
+-- --     de controle. Attendu : true | authenticated.
+-- select auth.uid() is not null as jeton_lu, current_user as role_courant;
+--
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 01', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 02', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 03', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 04', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 05', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 06', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 07', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 08', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 09', 'proposee', 'AH');
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 10', 'proposee', 'AH');
+-- -- LA ONZIEME : c'est ELLE qui doit echouer.
+-- insert into public.demandes (titre, statut, decideur) values ('P-2 refus -- A ROLLBACK 11', 'proposee', 'AH');
+--
+-- rollback;
+--
+-- =====================================================================
+-- CAS B -- UNE SEULE INSTRUCTION DE ONZE LIGNES (le cas que la page ne
+-- produit JAMAIS, mais qu'un seul POST de PostgREST avec le jeton d'AH
+-- produirait -- c'est-a-dire le cas meme que ce plafond vise, R-026).
+-- Attendu : la MEME erreur 'Plafond atteint', levee a la onzieme ligne
+-- de l'instruction, et AUCUNE des onze n'entre.
+-- Sans le declencheur de NIVEAU INSTRUCTION, les onze passeraient : les
+-- declencheurs 'after' de niveau ligne ne jouent qu'a la FIN de
+-- l'instruction, donc le journal serait encore vide pour toutes.
+-- =====================================================================
+--
+-- begin;
+-- set local role authenticated;
+-- select set_config('request.jwt.claims',
+--                   '{"sub":"<UUID-DE-AH>","role":"authenticated"}', true);
+-- select auth.uid() is not null as jeton_lu, current_user as role_courant;
+--
+-- insert into public.demandes (titre, statut, decideur) values
+--   ('P-2 lot -- A ROLLBACK 01', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 02', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 03', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 04', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 05', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 06', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 07', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 08', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 09', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 10', 'proposee', 'AH'),
+--   ('P-2 lot -- A ROLLBACK 11', 'proposee', 'AH');
+--
+-- rollback;
+--
+-- =====================================================================
+-- APRES LES DEUX CAS -- verifier qu'il ne reste RIEN. Attendu : 0.
+-- =====================================================================
+--
+-- select count(*) as restes
+--   from public.demandes
+--  where titre like 'P-2 %A ROLLBACK%';
+--
+-- SI LES ONZE PASSENT dans l'un ou l'autre cas : le plafond est inerte
+-- pour cette forme-la. ARRET, et on le signale -- on ne "reessaie" pas.
 -- ---------------------------------------------------------------------

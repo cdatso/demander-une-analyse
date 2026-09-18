@@ -51,13 +51,35 @@
 # 'X-Robots-Tag' ne figure pas dans la liste des en-tetes que Netlify
 # ignore.
 #
-# PORTEE VOLONTAIREMENT ETROITE : '/admin.html' et rien d'autre.
-# index.html et file.html gardent leur comportement -- file.html porte
-# deja sa propre balise 'noindex', et le service public ne change pas.
+# ---------------------------------------------------------------------
+# CORRIGE LE 18/09/2026, APRES L'AUDIT DU GREFFE : '/admin.html' SEUL NE
+# SUFFISAIT PAS.
+# ---------------------------------------------------------------------
+# Netlify sert d'ordinaire un fichier .html AUSSI a son adresse "propre",
+# sans extension : admin.html repond donc aussi a /admin. Une regle posee
+# sur '/admin.html' seul ne couvrait PAS cette seconde adresse, et la
+# page aurait pu etre indexee par la porte de derriere.
+#
+# Documentation Netlify (docs.netlify.com/manage/routing/headers/,
+# verifiee le 18/09/2026) : le champ 'for' accepte des JOKERS '*', qui
+# apparient n'importe quel caractere a l'interieur d'un segment de
+# chemin. '/admin*' couvre donc /admin, /admin.html et /admin/ d'un seul
+# tenant.
+#
+# PORTEE : tout ce qui commence par '/admin', et rien d'autre. C'est plus
+# large que la seule page, et c'est VOULU -- si une seconde surface
+# d'administration naissait un jour, elle naitrait couverte plutot que
+# decouverte. index.html et file.html gardent leur comportement :
+# file.html porte deja sa propre balise 'noindex', et le service public
+# ne change pas.
+#
 # La securite de cette page ne repose de toute facon PAS sur l'obscurite :
 # c'est la base qui decide (policies nominatives, 05-page-privee-w2.sql).
 # Cet en-tete evite qu'elle traine dans un index, il ne la protege pas.
+#
+# LA RECETTE (V5) SE JOUE SUR LES DEUX ADRESSES, sur l'EN-TETE et non sur
+# la balise : curl -I sur /admin.html ET sur /admin.
 [[headers]]
-  for = "/admin.html"
+  for = "/admin*"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"

@@ -20,25 +20,31 @@
 -- =====================================================================
 -- !!! AVANT DE JOUER -- UN SEUL GESTE DE SUBSTITUTION
 -- =====================================================================
--- Remplace les CINQ occurrences de la chaine
+-- Cherche la chaine formee du caractere '<', puis de UUID-DE-AH, puis du
+-- caractere '>'. Elle est ecrite EN MORCEAUX dans cette consigne, et
+-- c'est VOLONTAIRE : ainsi la consigne elle-meme n'est PAS appariee, et
+-- "Replace all" ne touche que le CODE.
 --
---     <UUID-DE-AH>
+-- (Correction du 18/09/2026, apres incident : la premiere version de
+-- cette consigne CONTENAIT la chaine qu'elle fait remplacer. Le
+-- "Replace all" l'a donc remplacee aussi, et la valeur d'AH s'est
+-- retrouvee ecrite dans un fichier d'un depot PUBLIC. Une consigne de
+-- substitution ne contient jamais la chaine qu'elle fait remplacer.)
 --
--- par ton UUID (Supabase -> Authentication -> Users -> ton compte ->
--- colonne "UID"). Ctrl+H dans le SQL Editor, "Replace all".
+-- QUATRE occurrences, toutes dans le code : une a la policy de lecture,
+-- DEUX a celle d'etape ('using' et 'with check'), une a celle de
+-- creation. Ctrl+H dans le SQL Editor, "Replace all".
+-- Le controle qui fait foi n'est pas ce nombre, c'est le controle n.17
+-- de 02-controles-demandes.sql : "UUID distincts nommes dans les
+-- policies de demandes" = 1.
 --
--- CINQ, et non quatre : QUATRE sont dans le code (une a la policy de
--- lecture, DEUX a celle d'etape -- 'using' et 'with check' --, une a
--- celle de creation), la CINQUIEME est celle de la presente consigne.
--- Cette derniere est un COMMENTAIRE : la remplacer est sans effet, et
--- "Replace all" vaut mieux qu'un compte a la main. Le controle qui fait
--- foi n'est pas ce nombre, c'est le controle n.17 de
--- 02-controles-demandes.sql : "UUID distincts nommes dans les policies
--- de demandes" = 1.
+-- OU TROUVER TA VALEUR : Supabase -> Authentication -> Users -> ton
+-- compte -> colonne "UID".
 --
--- NE COMMITE JAMAIS LA VALEUR. Ce depot est PUBLIC : le fichier
--- versionne garde le PARAMETRE, et la substitution vit dans l'editeur
--- SQL seul (mandat lot 2, borne L-2).
+-- NE COMMITE JAMAIS LA VALEUR, et N'ENREGISTRE PAS LE FICHIER DU DEPOT
+-- une fois substitue. Ce depot est PUBLIC : le fichier versionne garde
+-- le PARAMETRE, et la substitution vit dans l'editeur SQL seul -- ou
+-- dans une copie placee HORS de tout depot (mandat lot 2, borne L-2).
 --
 -- FAIL-CLOSED SI TU OUBLIES : la chaine ci-dessus n'est pas un UUID
 -- valide, la conversion ::uuid leve "invalid input syntax for type
@@ -265,6 +271,79 @@ $fn$;
 -- JOUR CIVIL = le jour d'AH, Europe/Brussels, recalcule a chaque appel
 -- (PATRON regle C-1 : on ne code jamais un decalage en dur, et on ne
 -- touche a rien aux changements d'heure).
+--
+-- =====================================================================
+-- !!! DEUX DEFAUTS CORRIGES LE 18/09/2026, TROUVES PAR LE GREFFE A
+-- !!! L'AUDIT INTERMEDIAIRE. LIRE AVANT DE TOUCHER A CE BLOC.
+-- =====================================================================
+--
+-- DEFAUT 1 -- 'current_user' DANS UNE FONCTION 'security definer'.
+-- La version precedente portait une seconde garde :
+--     if current_user <> 'authenticated' then return new; end if;
+-- Elle se voulait "ceinture et bretelles". Elle TUAIT le plafond.
+-- Documentation PostgreSQL, System Information Functions (verifiee le
+-- 18/09/2026) : "The current_user is the user identifier that is
+-- applicable for permission checking. Normally it is equal to the
+-- session user, but it can be changed with SET ROLE. IT ALSO CHANGES
+-- DURING THE EXECUTION OF FUNCTIONS WITH THE ATTRIBUTE SECURITY
+-- DEFINER." Dans CETTE fonction, current_user vaut donc son
+-- PROPRIETAIRE (postgres) -- jamais 'authenticated'. La garde etait
+-- vraie a chaque appel : la fonction sortait AVANT de compter, et le
+-- plafond ne refusait RIEN. Tous les controles restaient verts sur un
+-- plafond mort.
+-- !!! REGLE : dans une fonction 'security definer', current_user ne dit
+-- RIEN de l'appelant. Pour connaitre l'appelant, on lit son JETON
+-- (auth.uid()), pas le role effectif. La garde 1 ci-dessous suffit, et
+-- le controle n.18 de 02-controles-demandes.sql verifie desormais que
+-- le texte de cette fonction ne contient PAS 'current_user'.
+--
+-- DEFAUT 2 -- L'INSERTION EN LOT CONTOURNAIT LE COMPTE.
+-- Le compte lit demandes_journal, que remplit un declencheur
+-- 'after insert ... for each row'. Or, documentation PostgreSQL,
+-- Overview of Trigger Behavior (verifiee le 18/09/2026) : "Row-level
+-- BEFORE triggers fire immediately before a particular row is operated
+-- on, while ROW-LEVEL AFTER TRIGGERS FIRE AT THE END OF THE STATEMENT."
+-- Dans UNE instruction qui insere N lignes, chaque declencheur 'before'
+-- lisait donc le MEME compte, et les N lignes passaient. PostgREST
+-- accepte un tableau JSON en un seul POST : avec le jeton d'AH -- le cas
+-- meme que ce plafond vise (R-026) -- une seule requete aurait cree cent
+-- demandes. La page, qui insere une ligne a la fois, n'aurait jamais vu
+-- le trou.
+-- LA PARADE : un COMPTEUR LOCAL A L'INSTRUCTION, remis a zero par un
+-- declencheur de NIVEAU INSTRUCTION (fonction ci-dessous), et ajoute au
+-- compte du journal. Il est pose par set_config(..., true) : local a la
+-- TRANSACTION, donc annule par tout rollback, comme le journal.
+-- POURQUOI PAS DEPLACER LA JOURNALISATION EN 'before' : il aurait fallu
+-- que new.id soit deja peuple dans un declencheur 'before insert'. La
+-- documentation ne l'ENONCE PAS pour les colonnes d'identite, et ce
+-- service est en PRODUCTION : on ne parie pas sur un comportement non
+-- documente quand une parade documentee existe.
+-- POURQUOI PAS LE COMPTEUR SEUL, SANS REMISE A ZERO : dans une
+-- transaction a plusieurs instructions, le journal de l'instruction 1
+-- est deja ecrit quand l'instruction 2 commence. Sans remise a zero, ces
+-- lignes seraient comptees DEUX FOIS. La remise a zero par instruction
+-- est ce qui rend l'addition juste.
+-- =====================================================================
+
+-- 4b-i. REMISE A ZERO DU COMPTEUR D'INSTRUCTION (niveau INSTRUCTION).
+-- Elle joue une fois, avant les declencheurs de ligne de la meme
+-- instruction. Elle ne compte rien et ne refuse rien : elle remet le
+-- compteur a zero, et c'est tout.
+create or replace function prive.plafond_debut_instruction()
+    returns trigger
+    language plpgsql
+    security definer
+    set search_path = ''
+as $fn$
+begin
+    -- 'true' = local a la TRANSACTION : un rollback l'efface, comme il
+    -- efface les lignes et leur journal.
+    perform set_config('cin096.creations_de_l_instruction', '0', true);
+    return null;   -- valeur ignoree pour un declencheur de niveau instruction
+end
+$fn$;
+
+-- 4b-ii. LE PLAFOND LUI-MEME (niveau LIGNE).
 create or replace function prive.plafond_creation_page()
     returns trigger
     language plpgsql
@@ -272,39 +351,54 @@ create or replace function prive.plafond_creation_page()
     set search_path = ''
 as $fn$
 declare
-    v_moi   uuid;
-    v_debut timestamptz;
-    v_n     integer;
+    v_moi         uuid;
+    v_debut       timestamptz;
+    v_journal     integer;
+    v_instruction integer;
 begin
     v_moi := auth.uid();
 
-    -- Garde 1 : aucun compte authentifie = clef secrete (service_role)
-    -- ou voie privilegiee. On ne compte rien, on laisse passer.
+    -- GARDE UNIQUE, et c'est la bonne : aucun compte authentifie = clef
+    -- secrete (service_role) ou voie privilegiee. On ne compte rien, on
+    -- laisse passer. FAIL-OPEN, voir le bloc ci-dessus.
+    -- !!! NE JAMAIS ajouter ici une garde sur le ROLE EFFECTIF de
+    -- l'appelant (voir le bloc DEFAUT 1 ci-dessus) : dans une fonction
+    -- 'security definer', il vaut le PROPRIETAIRE, et une telle garde
+    -- tuerait le plafond en silence.
+    -- La chaine interdite n'est pas ecrite ici A DESSEIN : le controle
+    -- n.18 lit pg_get_functiondef(), qui rend le CORPS COMMENTAIRES
+    -- COMPRIS. Un avertissement qui nommerait la chose rendrait le
+    -- controle ROUGE sur lui-meme (PATRON regle K-4, doctrine
+    -- "mention != valeur").
     if v_moi is null then
-        return new;
-    end if;
-
-    -- Garde 2 : ceinture et bretelles -- seul le role authenticated est
-    -- plafonne. Tout autre appelant passe.
-    if current_user <> 'authenticated' then
         return new;
     end if;
 
     v_debut := date_trunc('day', now() at time zone 'Europe/Brussels')
                at time zone 'Europe/Brussels';
 
-    select count(*) into v_n
+    -- (a) ce que le JOURNAL porte deja -- les instructions precedentes.
+    select count(*) into v_journal
       from public.demandes_journal
      where geste = 'creation'
        and par   = v_moi
        and a    >= v_debut;
 
-    if v_n >= 10 then
+    -- (b) ce que l'instruction EN COURS a deja insere, et que le journal
+    -- ne portera qu'a la fin de l'instruction.
+    v_instruction := coalesce(
+        nullif(current_setting('cin096.creations_de_l_instruction', true), ''),
+        '0')::integer;
+
+    if v_journal + v_instruction >= 10 then
         raise exception
-            'Plafond atteint : 10 creations par jour depuis la page privee. Le compteur repart a zero au jour suivant.'
+            'Plafond atteint : 10 creations par jour depuis la page privee (% deja journalisee(s), % dans cette instruction). Le compteur repart a zero au jour suivant.',
+            v_journal, v_instruction
             using errcode = 'check_violation';
     end if;
 
+    perform set_config('cin096.creations_de_l_instruction',
+                       (v_instruction + 1)::text, true);
     return new;
 end
 $fn$;
@@ -314,16 +408,33 @@ $fn$;
 -- retire. Leurs declencheurs, eux, s'executent hors de ce controle.
 revoke all on function prive.journaliser_demande() from public;
 revoke all on function prive.plafond_creation_page() from public;
+revoke all on function prive.plafond_debut_instruction() from public;
 revoke all on function prive.journaliser_demande() from anon, authenticated;
 revoke all on function prive.plafond_creation_page() from anon, authenticated;
+revoke all on function prive.plafond_debut_instruction() from anon, authenticated;
 
 -- ---------------------------------------------------------------------
--- 5. LES DEUX DECLENCHEURS sur public.demandes.
+-- 5. LES TROIS DECLENCHEURS sur public.demandes.
 -- ---------------------------------------------------------------------
--- L'ordre de vie compte : le PLAFOND est 'before insert' (il refuse
--- avant que la ligne existe), la JOURNALISATION est 'after insert or
--- update' (elle ecrit ce qui a bien eu lieu). La onzieme creation du
--- jour est donc refusee en lisant les DIX lignes deja journalisees.
+-- L'ORDRE DE VIE, et il fait tout le sens de ce bloc :
+--   1. NIVEAU INSTRUCTION, before insert -- remet a zero le compteur de
+--      l'instruction. PostgreSQL joue les declencheurs de niveau
+--      instruction AVANT ceux de niveau ligne de la meme instruction.
+--   2. NIVEAU LIGNE, before insert -- compte (journal + instruction) et
+--      refuse au-dela de dix, AVANT que la ligne existe.
+--   3. NIVEAU LIGNE, after insert or update -- journalise ce qui a bien
+--      eu lieu. Il ne joue qu'a la FIN de l'instruction : c'est
+--      precisement pourquoi le compteur de l'etape 1 existe.
+--
+-- La onzieme creation du jour est donc refusee, qu'elle arrive en
+-- onzieme INSTRUCTION (dix lignes au journal) ou en onzieme LIGNE d'une
+-- SEULE instruction (dix au compteur). L'epreuve P-2 de
+-- 02-controles-demandes.sql eprouve LES DEUX CAS.
+drop trigger if exists demandes_plafond_instruction_trg on public.demandes;
+create trigger demandes_plafond_instruction_trg
+    before insert on public.demandes
+    for each statement execute function prive.plafond_debut_instruction();
+
 drop trigger if exists demandes_plafond_trg on public.demandes;
 create trigger demandes_plafond_trg
     before insert on public.demandes
@@ -401,10 +512,12 @@ commit;
 -- ---------------------------------------------------------------------
 -- Attendu, dans l'ordre :
 --   policies sur demandes ............... 3
---   declencheurs sur demandes ........... 2
+--   declencheurs sur demandes ........... 3   (un d'INSTRUCTION, deux de LIGNE)
 --   demandes_journal / RLS / policies ... 1 / true / 0
 --   UUID distincts nommes ............... 1  (la VALEUR n'est pas affichee)
--- La recette complete est 02-controles-demandes.sql (controles 1 et 12 a 18).
+-- La recette complete est 02-controles-demandes.sql (controles 1 et 12 a 18),
+-- et la PREUVE DU REFUS est son bloc optionnel P-2 -- sans lui, un plafond
+-- mort rendrait ces quatre lignes vertes (lecon du 18/09/2026).
 select 'policies sur demandes' as controle,
        (select count(*)::text from pg_policies
          where schemaname = 'public' and tablename = 'demandes') as mesure,
@@ -413,7 +526,7 @@ union all
 select 'declencheurs sur demandes',
        (select count(*)::text from pg_trigger
          where tgrelid = 'public.demandes'::regclass and not tgisinternal),
-       '2'
+       '3'
 union all
 select 'demandes_journal : table / RLS / policies',
        (select count(*)::text from pg_class
@@ -448,8 +561,10 @@ select 'UUID distincts nommes dans les policies de demandes',
 --
 -- drop trigger if exists demandes_journal_trg on public.demandes;
 -- drop trigger if exists demandes_plafond_trg on public.demandes;
+-- drop trigger if exists demandes_plafond_instruction_trg on public.demandes;
 -- drop function if exists prive.journaliser_demande();
 -- drop function if exists prive.plafond_creation_page();
+-- drop function if exists prive.plafond_debut_instruction();
 --
 -- drop policy if exists demandes_ah_lecture  on public.demandes;
 -- drop policy if exists demandes_ah_etape    on public.demandes;
