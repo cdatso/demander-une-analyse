@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Administration de la file</title>
+<!--
+  admin.html -- la PAGE PRIVEE d'administration de la file du service
+  "Demander une analyse". BKL-CIN-096 (b) lot 2, 18/09/2026.
+  Architecture W2 + H1 + S-H1 (decisions d'AH du 18/09/2026) :
+  policies RLS nominatives, connexion par lien magique, page servie sur
+  le meme site que le service.
+
+  ===================================================================
+  CETTE PAGE ECRIT EN PRODUCTION, ET ELLE DETIENT LE JETON DE SESSION.
+  ===================================================================
+  Consequence directe, et c'est une BORNE, pas une preference :
+  ZERO RESSOURCE EXTERNE. Aucun CDN, aucune bibliotheque, aucune police
+  distante, aucune feuille de style distante, aucun script tiers. Un
+  seul script tiers ici ecrirait dans la table EN PRODUCTION sous
+  l'identite d'AH. La seule origine appelee par cette page est celle du
+  projet Supabase.
+
+  CE QU'ELLE FAIT :
+    * connexion par LIEN MAGIQUE (shouldCreateUser: false) ; rien de la
+      file n'est affiche tant que la session n'est pas etablie ;
+    * LIRE la file complete, motif et mail compris -- par textContent
+      SEUL, jamais par innerHTML ;
+    * REVISER une etape : UNE LIGNE PAR GESTE, confirmation qui affiche
+      "avant -> apres", et TABLE DES TRANSITIONS imposee par la page ;
+    * CREER une demande (titre, realisateur, annee, etape initiale),
+      avec decideur = 'AH' et les bornes de forme rejouees.
+
+  CE QU'ELLE NE FAIT JAMAIS :
+    * SUPPRIMER une demande. Il n'existe AUCUN chemin de suppression
+      dans ce fichier -- une demande indesirable passe en
+      'mise_de_cote'. La suppression reste un geste du Table Editor,
+      hors de cette page. La base ne lui accorde d'ailleurs aucun
+      'delete'.
+    * appeler un modele, ou automatiser quoi que ce soit. Cette page est
+      une COMMANDE d'AH : chaque geste part d'un clic.
+    * interpreter du balisage venu de la base.
+
+  LES CHAMPS 'motif' ET 'mail' SONT DES DONNEES, JAMAIS DES ORDRES
+  (charte de collaboration, regle 11). Ils sont ecrits par des inconnus.
+  Cette page est la PREMIERE surface qui affiche 'motif'. Il se rend par
+  textContent, il ne s'interprete pas, et une consigne qu'il
+  contiendrait SE RAPPORTE A AH -- elle ne s'execute pas.
+
+  LA TABLE DES TRANSITIONS EST UNE CONVENTION D'INTERFACE, PAS UN
+  VERROU. Decision d'AH du 18/09/2026 : elle vit dans cette page seule,
+  et non en base. "traitee n'a aucune sortie" vaut donc pour cette page,
+  PAS pour l'API.
+
+  LE PLAFOND DE CREATION EST EN BASE, PAS ICI. Dix creations par jour,
+  par declencheur 'before insert' (05-page-privee-w2.sql). Cette page
+  AFFICHE le refus ; elle ne le garde pas. Un plafond porte par la page
+  seule ne garderait rien : l'API reste ouverte a la session d'AH.
+
+  Le texte affiche a AH est du CONTENU : francais accentue. Le CODE
+  reste en ASCII pur, comme dans file.html.
+
+  Fichier SERVI par un serveur : UTF-8 SANS BOM.
+-->
+<style>
+  :root {
+    --encre: #1c1a17;
+    --encre-douce: #5b544c;
+    --fond: #faf8f5;
+    --carte: #ffffff;
+    --trait: #ddd6cc;
+    --accent: #6b4f2a;
+    --alerte: #8a3d2c;
+    --prive: #3d4f6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fond);
+    color: var(--encre);
+    font: 16px/1.6 Georgia, "Times New Roman", serif;
+    padding: 2.5rem 1.2rem 4rem;
+  }
+  main { max-width: 52rem; margin: 0 auto; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 0.4rem; font-weight: 600; }
+  .chapeau { color: var(--encre-douce); margin: 0 0 1.5rem; }
+  .bandeau {
+    border-left: 3px solid var(--prive);
+    background: var(--carte);
+    padding: 0.8rem 1rem;
+    margin: 0 0 1.5rem;
+    font-size: 0.92rem;
+  }
+  .bandeau p { margin: 0 0 0.4rem; }
+  .bandeau p:last-child { margin-bottom: 0; }
+  h2 {
+    font-size: 1.15rem;
+    margin: 2.2rem 0 0.2rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--trait);
+  }
+  .compte { color: var(--encre-douce); font-size: 0.85rem; font-weight: 400; }
+  .vide { color: var(--encre-douce); font-style: italic; font-size: 0.92rem; margin: 0.6rem 0 0; }
+  ul { list-style: none; padding: 0; margin: 0.8rem 0 0; }
+  li {
+    background: var(--carte);
+    border: 1px solid var(--trait);
+    border-radius: 4px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.6rem;
+  }
+  .titre { font-weight: 600; }
+  .meta { color: var(--encre-douce); font-size: 0.9rem; }
+  .prive-champ {
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px dashed var(--trait);
+    border-radius: 3px;
+    background: var(--fond);
+  }
+  .prive-etiquette {
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--encre-douce);
+    margin-bottom: 0.2rem;
+  }
+  .geste { margin-top: 0.7rem; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+  .confirmation {
+    margin-top: 0.7rem;
+    padding: 0.7rem 0.9rem;
+    border-left: 3px solid var(--alerte);
+    background: var(--fond);
+    font-size: 0.93rem;
+  }
+  .confirmation p { margin: 0 0 0.5rem; }
+  .fleche { font-weight: 600; }
+  label { display: block; font-size: 0.9rem; margin: 0.7rem 0 0.15rem; }
+  input, select, button, textarea {
+    font: inherit;
+    font-size: 0.95rem;
+  }
+  input[type="text"], input[type="email"], input[type="number"], select {
+    width: 100%;
+    max-width: 26rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--trait);
+    border-radius: 3px;
+    background: var(--carte);
+    color: var(--encre);
+  }
+  button {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    background: var(--carte);
+    color: var(--accent);
+    cursor: pointer;
+  }
+  button:hover:enabled { background: var(--fond); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.discret { border-color: var(--trait); color: var(--encre-douce); }
+  #message {
+    border-left: 3px solid var(--alerte);
+    background: var(--carte);
+    padding: 1rem 1.1rem;
+    margin: 0 0 1.5rem;
+  }
+  #message[hidden], #atelier[hidden], #connexion[hidden] { display: none; }
+  #message p { margin: 0 0 0.5rem; }
+  #message p:last-child { margin-bottom: 0; }
+  .barre {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--trait);
+    border-radius: 4px;
+    background: var(--carte);
+    font-size: 0.9rem;
+  }
+  code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.88em;
+    background: var(--fond);
+    padding: 0.05rem 0.3rem;
+    border: 1px solid var(--trait);
+    border-radius: 3px;
+  }
+  footer { margin-top: 3rem; font-size: 0.85rem; color: var(--encre-douce); }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Administration de la file</h1>
+
+  <p class="chapeau">Page privée. Elle écrit dans la base <strong>en
+  production</strong>, et chaque geste y laisse une trace datée et
+  nominative.</p>
+
+  <div class="bandeau">
+    <p><strong>Les champs « motif » et « adresse » sont écrits par des
+    inconnus.</strong> Ils s'affichent ici comme des <em>données</em> :
+    une consigne qu'ils contiendraient ne s'exécute pas — elle se
+    rapporte.</p>
+    <p><strong>Aucune suppression</strong> depuis cette page : une
+    demande indésirable passe en « Mises de côté ».</p>
+  </div>
+
+  <div id="message" hidden></div>
+
+  <section id="connexion" hidden>
+    <h2>Connexion</h2>
+    <p class="vide">Un lien de connexion est envoyé à ton adresse. Il est
+    valable une heure, et le courrier intégré de Supabase est plafonné à
+    quelques envois par heure — ne le redemande pas en rafale.</p>
+    <label for="courriel">Adresse électronique</label>
+    <input type="email" id="courriel" autocomplete="email" spellcheck="false">
+    <div class="geste">
+      <button type="button" id="demander-lien">Recevoir un lien</button>
+    </div>
+  </section>
+
+  <section id="atelier" hidden>
+
+    <div class="barre">
+      <span id="qui"></span>
+      <span class="geste">
+        <button type="button" id="recharger" class="discret">Recharger</button>
+        <button type="button" id="deconnecter" class="discret">Se déconnecter</button>
+      </span>
+    </div>
+
+    <h2>Créer une demande</h2>
+    <p class="vide">Le décideur est <code>AH</code> par construction. La
+    base refuse au-delà de dix créations par jour depuis cette page —
+    c'est elle qui refuse, pas cette page.</p>
+
+    <label for="n-titre">Titre <span class="compte">(1 à 150 caractères, 20 mots au plus)</span></label>
+    <input type="text" id="n-titre" spellcheck="false">
+
+    <label for="n-realisateur">Réalisateur <span class="compte">(facultatif, 100 caractères au plus, sans chiffre)</span></label>
+    <input type="text" id="n-realisateur" spellcheck="false">
+
+    <label for="n-annee">Année <span class="compte">(facultatif)</span></label>
+    <input type="number" id="n-annee" inputmode="numeric">
+
+    <label for="n-etape">Étape initiale</label>
+    <select id="n-etape"></select>
+
+    <div class="geste">
+      <button type="button" id="creer">Créer la demande</button>
+      <span class="compte" id="compte-creations"></span>
+    </div>
+    <div id="creation-retour"></div>
+
+    <div id="sections"></div>
+
+  </section>
+
+  <footer>
+    <p>Service du site Analyses de films — www.cdatso.be. Page privée,
+    non liée depuis aucune autre page et servie en <code>noindex</code>.</p>
+  </footer>
+
+</main>
+
+<script>
+// Code en ASCII pur. Les phrases affichees a AH sont du CONTENU :
+// elles sont en francais accentue.
+(function () {
+  'use strict';
+
+  // =====================================================================
+  //  LES DEUX MEMES EMPLACEMENTS QUE file.html.
+  // =====================================================================
+  //  SUPABASE_CLE_PUBLIABLE est bien la clef PUBLIABLE (sb_publishable_...)
+  //  -- la meme que file.html, et son role EST d'etre exposee dans une
+  //  page. Elle n'ouvre RIEN par elle-meme : la table n'accorde aucun
+  //  droit au role 'anon', et les policies de 05-page-privee-w2.sql
+  //  exigent un UUID nomme. Ce qui ouvre, c'est le JETON DE SESSION
+  //  obtenu par le lien magique -- et lui ne vit jamais dans ce fichier.
+  //
+  //  N'Y METTEZ JAMAIS la clef secrete (sb_secret_...) : elle contourne
+  //  la RLS par son role.
+  // =====================================================================
+
+  var SUPABASE_URL = 'https://xflbhrtuukyoihqqeoau.supabase.co';
+  var SUPABASE_CLE_PUBLIABLE = 'sb_publishable_p1S5BYDF4W2KOvOcSvxRQQ_15W0dDx5';
+
+  var BASE = SUPABASE_URL.replace(/\/+$/, '');
+
+  // ---------------------------------------------------------------------
+  // LES SEPT ETAPES -- memes cles et memes libelles que file.html.
+  // ---------------------------------------------------------------------
+  var ETAPES = [
+    { cle: 'proposee',           titre: 'Proposées', note: 'Reçues par le formulaire, en attente d’arbitrage.' },
+    { cle: 'a_traiter',          titre: 'À traiter', note: 'Retenues pour analyse.' },
+    { cle: 'publication_pilote', titre: 'Essai de publication automatique', note: 'Retenues pour un essai hors du site, non relu.' },
+    { cle: 'scholar',            titre: 'File d’étude', note: 'Traitement supervisé, volet avancé.' },
+    { cle: 'candidat',           titre: 'Candidats', note: 'Repérées, à valider.' },
+    { cle: 'mise_de_cote',       titre: 'Mises de côté', note: 'Non retenues pour l’instant.' },
+    { cle: 'traitee',            titre: 'Traitées', note: 'Analysées et publiées.' }
+  ];
+
+  // ---------------------------------------------------------------------
+  // LA TABLE DES TRANSITIONS (analyse CIN-096 (a) L2.5).
+  // ---------------------------------------------------------------------
+  // CONVENTION D'INTERFACE, PAS VERROU DE LA BASE (decision d'AH du
+  // 18/09/2026). L'API accepterait d'autres passages ; cette page, non.
+  //
+  // 'traitee' n'a AUCUNE sortie : une erreur se corrige au Table Editor.
+  // 'scholar' et 'candidat' ne s'atteignent que depuis 'proposee' -- le
+  // chemin de retour existe et passe par 'mise_de_cote' puis 'proposee'.
+  // Les SEPT valeurs reelles de la contrainte figurent toutes ici comme
+  // origine : la table est complete.
+  var TRANSITIONS = {
+    proposee:           ['a_traiter', 'publication_pilote', 'scholar', 'candidat', 'mise_de_cote'],
+    a_traiter:          ['publication_pilote', 'mise_de_cote', 'traitee'],
+    publication_pilote: ['a_traiter', 'mise_de_cote', 'traitee'],
+    scholar:            ['a_traiter', 'mise_de_cote'],
+    candidat:           ['a_traiter', 'mise_de_cote'],
+    mise_de_cote:       ['proposee', 'a_traiter'],
+    traitee:            []
+  };
+
+  // Poser cette etape autorise une PUBLICATION AUTOMATIQUE NON RELUE sur
+  // la surface pilote (analyse L3.1) : la confirmation le dit en toutes
+  // lettres, a chaque fois.
+  var ETAPE_ARMANTE = 'publication_pilote';
+
+  // ---------------------------------------------------------------------
+  // BORNES DE FORME (analyse CIN-096 (a) L1.4), rejouees ici.
+  // ---------------------------------------------------------------------
+  // DEUX ECARTS DECLARES par rapport a L1.4, et leurs raisons :
+  //
+  // (1) LE LEXIQUE EST EN ALERTE, PAS EN REJET. L1.4 enseignement 3 l'a
+  //     mesure : le lexique rend des FAUX POSITIFS sur de vrais films
+  //     (Key Largo, System Crasher -- deux sur quatre essais cibles), et
+  //     il recommande lui-meme "lexique en ALERTE (recommande pour la
+  //     production, ou AH est present)". Ici AH n'est pas seulement
+  //     present : c'est LUI qui tape. Un rejet l'empecherait de creer
+  //     "Key Largo". L'alerte s'affiche, et il tranche.
+  // (2) UNE ANNEE HORS PLAGE EST REFUSEE, elle n'est pas silencieusement
+  //     mise a vide. L1.4 prescrit "hors plage -> null" pour un champ de
+  //     TIERS, ou personne ne peut corriger. Ici la saisie est celle
+  //     d'AH : lui dire vaut mieux que jeter sa frappe. Il corrige, ou il
+  //     vide le champ lui-meme.
+  var TITRE_JEU = /^[\p{L}\p{M}\p{N} '’\-–—:,.!?&()\/½*+]+$/u;
+  var REAL_JEU = /^[\p{L}\p{M} '’\-.,]+$/u;
+  // DEUX FAMILLES, et la mesure de L1.4 en donne la raison : les MOTS se
+  // cherchent en MOT ENTIER -- sinon "Systemsprenger" alerterait sur
+  // "system", alors que le rejeu du 16/09 l'a bien vu ADMIS. Les MOTIFS
+  // techniques, eux, se cherchent en sous-chaine : une adresse ne se
+  // decoupe pas en mots.
+  var LEXIQUE_MOTS = [
+    'ignore', 'ignorez', 'instruction', 'instructions', 'system', 'prompt',
+    'override', 'assistant', 'claude', 'anthropic', 'gate',
+    'publie', 'publier', 'publiez', 'secret', 'secrets',
+    'key', 'cle', 'clé', 'clef', 'token', 'sudo', 'admin'
+  ];
+  var LEXIQUE_MOTIFS = [
+    'http:', 'https:', 'www.', '.md', '.js', '.json', '.ps1', '.py'
+  ];
+
+  var ANNEE_MIN = 1895;
+  var ANNEE_MAX = new Date().getFullYear() + 2;
+
+  // ---------------------------------------------------------------------
+  // Le jeton de session.
+  // ---------------------------------------------------------------------
+  // sessionStorage, et NON localStorage : la session meurt avec l'onglet.
+  // C'est plus strict que le defaut des bibliotheques Supabase, et la
+  // raison est le plafond du courrier integre -- quelques envois par
+  // heure : une page qui exigerait un lien neuf a chaque rechargement
+  // serait inutilisable. L'onglet ferme, il ne reste rien.
+  // Un stockage en memoire seule reste possible si AH le prefere : il
+  // suffit de remplacer les trois fonctions ci-dessous.
+  var CLEF_JETON = 'cin096-lot2-session';
+  var session = null;
+  var moi = null;
+  var demandes = [];
+  var creationsDeLaSession = 0;
+  var enVol = false;
+
+  function lireSession() {
+    try {
+      var brut = window.sessionStorage.getItem(CLEF_JETON);
+      return brut ? JSON.parse(brut) : null;
+    } catch (e) { return null; }
+  }
+  function ecrireSession(s) {
+    session = s;
+    try {
+      if (s) window.sessionStorage.setItem(CLEF_JETON, JSON.stringify(s));
+      else window.sessionStorage.removeItem(CLEF_JETON);
+    } catch (e) { /* mode prive : la session vit alors en memoire seule */ }
+  }
+  function oublierSession() { ecrireSession(null); moi = null; }
+
+  // ---------------------------------------------------------------------
+  // Affichage -- TOUJOURS par textContent, JAMAIS par innerHTML.
+  // ---------------------------------------------------------------------
+  // Le contenu vient de la base, ou il a ete ecrit par un inconnu. Il
+  // n'est jamais interprete comme du balisage. C'est le patron de
+  // file.html, repris tel quel.
+  var zoneMessage = document.getElementById('message');
+  var zoneSections = document.getElementById('sections');
+  var zoneConnexion = document.getElementById('connexion');
+  var zoneAtelier = document.getElementById('atelier');
+  var zoneCreationRetour = document.getElementById('creation-retour');
+
+  function vider(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+  function elt(nom, classe, contenu) {
+    var e = document.createElement(nom);
+    if (classe) e.className = classe;
+    if (contenu !== undefined && contenu !== null) e.textContent = String(contenu);
+    return e;
+  }
+
+  function message(phrases, morceauxCode) {
+    vider(zoneMessage);
+    var i;
+    for (i = 0; i < phrases.length; i++) {
+      zoneMessage.appendChild(elt('p', null, phrases[i]));
+    }
+    if (morceauxCode) {
+      for (i = 0; i < morceauxCode.length; i++) {
+        var p = elt('p', null, null);
+        p.appendChild(elt('code', null, morceauxCode[i]));
+        zoneMessage.appendChild(p);
+      }
+    }
+    zoneMessage.hidden = false;
+    window.scrollTo(0, 0);
+  }
+
+  function taireMessage() { vider(zoneMessage); zoneMessage.hidden = true; }
+
+  function texte(valeur) {
+    return (valeur === null || valeur === undefined) ? '' : String(valeur);
+  }
+
+  function libelle(cle) {
+    for (var i = 0; i < ETAPES.length; i++) {
+      if (ETAPES[i].cle === cle) return ETAPES[i].titre;
+    }
+    return cle;
+  }
+
+  // ---------------------------------------------------------------------
+  // Le reseau. UNE SEULE ORIGINE EST APPELEE : celle du projet Supabase.
+  // ---------------------------------------------------------------------
+  function appeler(chemin, options) {
+    var o = options || {};
+    var entetes = {
+      apikey: SUPABASE_CLE_PUBLIABLE,
+      accept: 'application/json'
+    };
+    // Sans jeton, c'est la clef publiable qui sert d'autorisation -- et
+    // elle n'ouvre rien : la table n'accorde aucun droit a 'anon'.
+    entetes.authorization = 'Bearer ' + (o.jeton || SUPABASE_CLE_PUBLIABLE);
+    if (o.corps !== undefined) entetes['content-type'] = 'application/json';
+    if (o.prefer) entetes.prefer = o.prefer;
+    return fetch(BASE + chemin, {
+      method: o.methode || 'GET',
+      headers: entetes,
+      body: o.corps !== undefined ? JSON.stringify(o.corps) : undefined
+    }).then(function (reponse) {
+      return reponse.text().then(function (brut) {
+        var charge = null;
+        if (brut) { try { charge = JSON.parse(brut); } catch (e) { charge = brut; } }
+        return { ok: reponse.ok, statut: reponse.status, charge: charge };
+      });
+    });
+  }
+
+  function raisonDuRefus(r) {
+    var c = r.charge;
+    if (c && typeof c === 'object') {
+      if (c.message) return String(c.message);
+      if (c.error_description) return String(c.error_description);
+      if (c.msg) return String(c.msg);
+      if (c.error) return String(c.error);
+    }
+    if (typeof c === 'string' && c) return c;
+    return 'HTTP ' + r.statut;
+  }
+
+  // ---------------------------------------------------------------------
+  // CONNEXION -- lien magique, sans bibliotheque.
+  // ---------------------------------------------------------------------
+  // Le flux est celui de GoTrue sans PKCE : aucune preuve de code n'est
+  // envoyee a la demande, donc le lien renvoie les jetons dans le
+  // FRAGMENT de l'adresse (#access_token=...). L'adresse de retour doit
+  // figurer dans la liste "Redirect URLs" du projet ; sinon Supabase
+  // renvoie vers la "Site URL", silencieusement.
+  function adresseDeRetour() {
+    return window.location.origin + window.location.pathname;
+  }
+
+  function demanderLien() {
+    var courriel = document.getElementById('courriel').value.trim();
+    if (!courriel || courriel.indexOf('@') < 1) {
+      message(['Il manque une adresse électronique valable.']);
+      return;
+    }
+    var bouton = document.getElementById('demander-lien');
+    bouton.disabled = true;
+    taireMessage();
+    appeler('/auth/v1/otp?redirect_to=' + encodeURIComponent(adresseDeRetour()), {
+      methode: 'POST',
+      // create_user: false -- cette page ne CREE JAMAIS de compte. Les
+      // inscriptions sont fermees au tableau de bord, et c'est le second
+      // verrou ; celui-ci est le premier.
+      corps: { email: courriel, create_user: false }
+    }).then(function (r) {
+      bouton.disabled = false;
+      if (r.ok) {
+        message([
+          'Le lien est parti vers ' + courriel + '. Il est valable une heure.',
+          'Ouvre-le dans CE navigateur : les jetons reviennent dans l’adresse de cette page.',
+          'Rien ne s’affiche au retour ? Vérifie que l’adresse de cette page figure bien dans la liste « Redirect URLs » du projet — sans elle, Supabase renvoie vers la « Site URL », sans le dire.'
+        ]);
+      } else {
+        message([
+          'Le lien n’a pas pu être demandé.',
+          raisonDuRefus(r),
+          'Si c’est un refus de débit : le courrier intégré de Supabase est plafonné à quelques envois par heure. Attends, ne réessaie pas en rafale.'
+        ]);
+      }
+    }).catch(function (e) {
+      bouton.disabled = false;
+      message(['Le lien n’a pas pu être demandé.', String(e && e.message ? e.message : e)]);
+    });
+  }
+
+  function lireLeFragment() {
+    var h = window.location.hash;
+    if (!h || h.length < 2) return null;
+    var p = new URLSearchParams(h.substring(1));
+    var jeton = p.get('access_token');
+    if (!jeton) {
+      var err = p.get('error_description') || p.get('error');
+      if (err) message(['La connexion a été refusée.', err]);
+      return null;
+    }
+    return {
+      jeton: jeton,
+      rafraichissement: p.get('refresh_token') || null
+    };
+  }
+
+  function nettoyerAdresse() {
+    try {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch (e) { /* sans effet ailleurs que dans la barre d'adresse */ }
+  }
+
+  function rafraichir() {
+    if (!session || !session.rafraichissement) return Promise.resolve(false);
+    return appeler('/auth/v1/token?grant_type=refresh_token', {
+      methode: 'POST',
+      corps: { refresh_token: session.rafraichissement }
+    }).then(function (r) {
+      if (r.ok && r.charge && r.charge.access_token) {
+        ecrireSession({
+          jeton: r.charge.access_token,
+          rafraichissement: r.charge.refresh_token || session.rafraichissement
+        });
+        return true;
+      }
+      return false;
+    }).catch(function () { return false; });
+  }
+
+  function quiSuisJe() {
+    return appeler('/auth/v1/user', { jeton: session.jeton }).then(function (r) {
+      if (r.ok && r.charge && r.charge.email) { moi = r.charge.email; return true; }
+      return false;
+    }).catch(function () { return false; });
+  }
+
+  function deconnecter() {
+    var jeton = session ? session.jeton : null;
+    oublierSession();
+    vider(zoneSections);
+    vider(zoneCreationRetour);
+    zoneAtelier.hidden = true;
+    zoneConnexion.hidden = false;
+    message(['Session fermée sur ce poste.']);
+    if (jeton) {
+      appeler('/auth/v1/logout', { methode: 'POST', jeton: jeton, corps: {} })
+        .catch(function () { /* la session locale est deja oubliee */ });
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // LECTURE de la file -- la TABLE, pas la vue.
+  // ---------------------------------------------------------------------
+  // La page lit la TABLE public.demandes parce qu'elle doit montrer
+  // 'motif' et 'mail', que la vue publique ne porte pas -- et parce que
+  // le role 'authenticated' n'a AUCUN droit sur la vue (arbitrage du
+  // lot 0, maintenu au lot 2).
+  function charger() {
+    return appeler('/rest/v1/demandes?select=*&order=created_at.desc', {
+      jeton: session.jeton
+    }).then(function (r) {
+      if (r.statut === 401 || r.statut === 403) return { expire: true };
+      if (!r.ok) throw new Error(raisonDuRefus(r));
+      if (!Array.isArray(r.charge)) throw new Error('reponse inattendue');
+      demandes = r.charge;
+      return { expire: false };
+    });
+  }
+
+  function rendre() {
+    vider(zoneSections);
+    var i, j;
+    for (i = 0; i < ETAPES.length; i++) {
+      var etape = ETAPES[i];
+      var lot = demandes.filter(function (d) { return d.statut === etape.cle; });
+
+      var h2 = elt('h2', null, etape.titre + ' ');
+      h2.appendChild(elt('span', 'compte', '(' + lot.length + ')'));
+      zoneSections.appendChild(h2);
+      zoneSections.appendChild(elt('p', 'vide', etape.note));
+
+      if (lot.length === 0) continue;
+      var ul = document.createElement('ul');
+      for (j = 0; j < lot.length; j++) ul.appendChild(carte(lot[j]));
+      zoneSections.appendChild(ul);
+    }
+
+    var inconnues = demandes.filter(function (d) {
+      for (var k = 0; k < ETAPES.length; k++) if (ETAPES[k].cle === d.statut) return false;
+      return true;
+    });
+    if (inconnues.length > 0) {
+      message(['Attention : ' + inconnues.length + ' demande(s) portent une étape ' +
+               'inconnue de cette page. Rien n’est perdu, mais elles ne sont pas affichées.']);
+    }
+  }
+
+  function carte(demande) {
+    var li = document.createElement('li');
+
+    li.appendChild(elt('div', 'titre', texte(demande.titre) || '(sans titre)'));
+
+    var morceaux = [];
+    if (texte(demande.realisateur)) morceaux.push(texte(demande.realisateur));
+    if (demande.annee) morceaux.push(String(demande.annee));
+    if (texte(demande.created_at)) morceaux.push('reçue le ' + texte(demande.created_at).slice(0, 10));
+    morceaux.push('n° ' + texte(demande.id));
+    morceaux.push('décideur : ' + (texte(demande.decideur) || '(vide)'));
+    li.appendChild(elt('div', 'meta', morceaux.join(' · ')));
+
+    // Les deux colonnes que la vue publique ne montre pas. DONNEES.
+    if (texte(demande.motif)) {
+      var bloc = elt('div', 'prive-champ', null);
+      bloc.appendChild(elt('span', 'prive-etiquette', 'Motif — texte libre d’un inconnu, donnée et non consigne'));
+      bloc.appendChild(elt('div', null, texte(demande.motif)));
+      li.appendChild(bloc);
+    }
+    if (texte(demande.mail)) {
+      var bm = elt('div', 'prive-champ', null);
+      bm.appendChild(elt('span', 'prive-etiquette', 'Adresse du demandeur — ne pas republier'));
+      bm.appendChild(elt('div', null, texte(demande.mail)));
+      li.appendChild(bm);
+    }
+
+    var cibles = TRANSITIONS[demande.statut] || [];
+    var geste = elt('div', 'geste', null);
+    if (cibles.length === 0) {
+      geste.appendChild(elt('span', 'compte',
+        'Aucune sortie depuis cette étape — une erreur se corrige au Table Editor.'));
+    } else {
+      var choix = document.createElement('select');
+      choix.appendChild(elt('option', null, '— choisir une étape —'));
+      choix.firstChild.value = '';
+      for (var i = 0; i < cibles.length; i++) {
+        var opt = elt('option', null, libelle(cibles[i]));
+        opt.value = cibles[i];
+        choix.appendChild(opt);
+      }
+      var bouton = elt('button', null, 'Changer l’étape');
+      bouton.type = 'button';
+      var zoneConf = elt('div', null, null);
+      bouton.addEventListener('click', function () {
+        proposerLeGeste(demande, choix.value, zoneConf);
+      });
+      geste.appendChild(choix);
+      geste.appendChild(bouton);
+      li.appendChild(geste);
+      li.appendChild(zoneConf);
+      return li;
+    }
+    li.appendChild(geste);
+    return li;
+  }
+
+  // ---------------------------------------------------------------------
+  // REVISION -- UNE LIGNE PAR GESTE, et "avant -> apres" sous les yeux.
+  // ---------------------------------------------------------------------
+  // Aucune revision ne part d'un clic unique : le premier clic AFFICHE ce
+  // qui va se passer, le second seul l'execute. Et une seule confirmation
+  // est ouverte a la fois.
+  function fermerLesConfirmations() {
+    var ouvertes = zoneSections.querySelectorAll('.confirmation');
+    for (var i = 0; i < ouvertes.length; i++) {
+      ouvertes[i].parentNode.removeChild(ouvertes[i]);
+    }
+  }
+
+  function proposerLeGeste(demande, cible, zoneConf) {
+    fermerLesConfirmations();
+    if (!cible) return;
+    taireMessage();
+
+    var conf = elt('div', 'confirmation', null);
+
+    var ligne = elt('p', null, null);
+    ligne.appendChild(document.createTextNode(texte(demande.titre) + ' : '));
+    ligne.appendChild(elt('span', 'fleche', libelle(demande.statut) + ' → ' + libelle(cible)));
+    conf.appendChild(ligne);
+
+    if (cible === ETAPE_ARMANTE) {
+      conf.appendChild(elt('p', null,
+        'Cette étape autorise une publication automatique NON RELUE sur la surface pilote. ' +
+        'Elle ne vaut rien pour la production : là, la publication reste un gate que tu prononces.'));
+    }
+
+    var actions = elt('div', 'geste', null);
+    var oui = elt('button', null, 'Confirmer');
+    oui.type = 'button';
+    var non = elt('button', 'discret', 'Annuler');
+    non.type = 'button';
+    non.addEventListener('click', function () { fermerLesConfirmations(); });
+    oui.addEventListener('click', function () {
+      oui.disabled = true;
+      non.disabled = true;
+      executerLeGeste(demande, cible, conf);
+    });
+    actions.appendChild(oui);
+    actions.appendChild(non);
+    conf.appendChild(actions);
+
+    vider(zoneConf);
+    zoneConf.appendChild(conf);
+  }
+
+  function executerLeGeste(demande, cible, conf) {
+    if (enVol) return;
+    enVol = true;
+    // Le filtre porte AUSSI sur l'etape de depart : si elle a change
+    // depuis l'affichage, la requete ne touche AUCUNE ligne, et on le
+    // voit. Une revision se fait sur ce qu'on a sous les yeux.
+    var chemin = '/rest/v1/demandes?id=eq.' + encodeURIComponent(demande.id) +
+                 '&statut=eq.' + encodeURIComponent(demande.statut);
+    appeler(chemin, {
+      methode: 'PATCH',
+      jeton: session.jeton,
+      corps: { statut: cible },
+      prefer: 'return=representation'
+    }).then(function (r) {
+      enVol = false;
+      if (!r.ok) {
+        message(['L’étape n’a pas été changée.', raisonDuRefus(r)]);
+        return;
+      }
+      if (!Array.isArray(r.charge) || r.charge.length === 0) {
+        message([
+          'Aucune ligne n’a changé.',
+          'La demande n° ' + demande.id + ' n’est plus à l’étape « ' + libelle(demande.statut) +
+          ' » : quelqu’un — ou quelque chose — l’a déplacée depuis l’affichage. Recharge avant de recommencer.'
+        ]);
+        return;
+      }
+      message([
+        'Fait : ' + texte(demande.titre) + ' — ' + libelle(demande.statut) +
+        ' → ' + libelle(cible) + '.',
+        'Le journal en base en porte la trace : qui, quand, avant, après.'
+      ]);
+      recharger();
+    }).catch(function (e) {
+      enVol = false;
+      message(['L’étape n’a pas été changée.', String(e && e.message ? e.message : e)]);
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // CREATION -- bornes de forme rejouees, decideur = 'AH'.
+  // ---------------------------------------------------------------------
+  function motsSuspects(chaine) {
+    var bas = chaine.toLowerCase().normalize('NFC');
+    var trouves = [];
+    var i;
+    for (i = 0; i < LEXIQUE_MOTS.length; i++) {
+      var borne = new RegExp('(^|[^\\p{L}\\p{N}])' + LEXIQUE_MOTS[i] +
+                             '($|[^\\p{L}\\p{N}])', 'u');
+      if (borne.test(bas)) trouves.push(LEXIQUE_MOTS[i]);
+    }
+    for (i = 0; i < LEXIQUE_MOTIFS.length; i++) {
+      if (bas.indexOf(LEXIQUE_MOTIFS[i]) >= 0) trouves.push(LEXIQUE_MOTIFS[i]);
+    }
+    return trouves;
+  }
+
+  function creer() {
+    if (enVol) return;
+    vider(zoneCreationRetour);
+    taireMessage();
+
+    var titre = document.getElementById('n-titre').value.trim().normalize('NFC');
+    var realisateur = document.getElementById('n-realisateur').value.trim().normalize('NFC');
+    var anneeBrute = document.getElementById('n-annee').value.trim();
+    var etape = document.getElementById('n-etape').value;
+
+    var refus = [];
+    if (titre.length < 1 || titre.length > 150) {
+      refus.push('Le titre fait ' + titre.length + ' caractère(s) : il en faut de 1 à 150.');
+    } else if (!TITRE_JEU.test(titre)) {
+      refus.push('Le titre porte un caractère hors du jeu admis (lettres, chiffres, espace et la ponctuation courante des titres).');
+    } else if (titre.split(/\s+/).length > 20) {
+      refus.push('Le titre fait plus de vingt mots.');
+    }
+    if (realisateur) {
+      if (realisateur.length > 100) {
+        refus.push('Le réalisateur dépasse cent caractères.');
+      } else if (!REAL_JEU.test(realisateur)) {
+        refus.push('Le réalisateur porte un caractère hors du jeu admis (lettres, espace, apostrophe, tiret, point, virgule — aucun chiffre).');
+      }
+    }
+    var annee = null;
+    if (anneeBrute) {
+      if (!/^\d{1,4}$/.test(anneeBrute)) {
+        refus.push('L’année n’est pas un nombre entier.');
+      } else {
+        annee = parseInt(anneeBrute, 10);
+        if (annee < ANNEE_MIN || annee > ANNEE_MAX) {
+          refus.push('L’année est hors de la plage ' + ANNEE_MIN + ' à ' + ANNEE_MAX +
+                     '. Corrige-la, ou laisse le champ vide — elle ne sera pas devinée.');
+          annee = null;
+        }
+      }
+    }
+    if (refus.length > 0) { message(refus); return; }
+
+    // ALERTE, pas refus : voir l'ecart declare (1) plus haut.
+    var suspects = motsSuspects(titre + ' ' + realisateur);
+    if (suspects.length > 0) {
+      zoneCreationRetour.appendChild(elt('p', 'vide',
+        'Note : la saisie contient ' + suspects.join(', ') +
+        '. Le lexique de vigilance rend des faux positifs sur de vrais titres — c’est une alerte, pas un refus.'));
+    }
+
+    enVol = true;
+    var bouton = document.getElementById('creer');
+    bouton.disabled = true;
+    appeler('/rest/v1/demandes', {
+      methode: 'POST',
+      jeton: session.jeton,
+      // EXACTEMENT les cinq colonnes que la base accorde a l'insertion.
+      // Une colonne de plus, et c'est un refus de droit.
+      corps: {
+        titre: titre,
+        realisateur: realisateur || null,
+        annee: annee,
+        statut: etape,
+        decideur: 'AH'
+      },
+      prefer: 'return=representation'
+    }).then(function (r) {
+      enVol = false;
+      bouton.disabled = false;
+      if (!r.ok) {
+        // Le plafond de dix creations par jour vient de la BASE. Cette
+        // page ne fait que rapporter son refus.
+        message(['La demande n’a pas été créée.', raisonDuRefus(r)]);
+        return;
+      }
+      creationsDeLaSession += 1;
+      afficherLeCompte();
+      document.getElementById('n-titre').value = '';
+      document.getElementById('n-realisateur').value = '';
+      document.getElementById('n-annee').value = '';
+      message(['Créée : ' + titre + ' — étape « ' + libelle(etape) + ' », décideur AH.']);
+      recharger();
+    }).catch(function (e) {
+      enVol = false;
+      bouton.disabled = false;
+      message(['La demande n’a pas été créée.', String(e && e.message ? e.message : e)]);
+    });
+  }
+
+  function afficherLeCompte() {
+    // Indicatif SEULEMENT : ce compte ne voit que cet onglet. Le plafond
+    // qui fait foi est en base, et lui compte le jour entier.
+    document.getElementById('compte-creations').textContent =
+      creationsDeLaSession === 0 ? '' :
+      creationsDeLaSession + ' création(s) dans cet onglet — le plafond de dix par jour est tenu par la base.';
+  }
+
+  // ---------------------------------------------------------------------
+  // Mise en route.
+  // ---------------------------------------------------------------------
+  function recharger() {
+    if (!session) return;
+    charger().then(function (etat) {
+      if (etat.expire) {
+        return rafraichir().then(function (ok) {
+          if (!ok) {
+            oublierSession();
+            zoneAtelier.hidden = true;
+            zoneConnexion.hidden = false;
+            message(['La session a expiré. Redemande un lien.']);
+            return;
+          }
+          return charger().then(function (e2) {
+            if (!e2.expire) rendre();
+          });
+        });
+      }
+      rendre();
+    }).catch(function (e) {
+      message(['La file n’a pas pu être lue.', String(e && e.message ? e.message : e)]);
+    });
+  }
+
+  function ouvrirLAtelier() {
+    zoneConnexion.hidden = true;
+    zoneAtelier.hidden = false;
+    document.getElementById('qui').textContent =
+      moi ? ('Connecté comme ' + moi) : 'Connecté';
+    afficherLeCompte();
+    recharger();
+  }
+
+  function demarrer() {
+    // FAIL-CLOSED : emplacements vides => message clair, aucune requete.
+    if (SUPABASE_URL === '' || SUPABASE_CLE_PUBLIABLE === '') {
+      message([
+        'Configuration absente : cette page n’a pas reçu l’adresse du projet et la clé publiable.',
+        'Les deux emplacements se remplissent en tête du script de cette page :'
+      ], ['SUPABASE_URL', 'SUPABASE_CLE_PUBLIABLE']);
+      return;
+    }
+
+    // Un retour de lien magique PKCE (?code=...) n'est pas exploitable
+    // ici : cette page n'envoie aucune preuve de code, donc elle n'en
+    // detient pas le verificateur. On le DIT, plutot que de rester
+    // blanche.
+    if (/[?&]code=/.test(window.location.search)) {
+      message([
+        'Le lien est revenu sous une forme que cette page ne sait pas ouvrir (flux PKCE).',
+        'Cette page utilise le flux par fragment. Si le projet a été basculé en PKCE, cette page doit être revue — signale-le plutôt que d’insister.'
+      ]);
+    }
+
+    var duFragment = lireLeFragment();
+    if (duFragment) {
+      ecrireSession(duFragment);
+      nettoyerAdresse();
+    } else {
+      session = lireSession();
+    }
+
+    var choixEtape = document.getElementById('n-etape');
+    for (var i = 0; i < ETAPES.length; i++) {
+      var opt = elt('option', null, ETAPES[i].titre);
+      opt.value = ETAPES[i].cle;
+      if (ETAPES[i].cle === 'a_traiter') opt.selected = true;
+      choixEtape.appendChild(opt);
+    }
+
+    document.getElementById('demander-lien').addEventListener('click', demanderLien);
+    document.getElementById('recharger').addEventListener('click', recharger);
+    document.getElementById('deconnecter').addEventListener('click', deconnecter);
+    document.getElementById('creer').addEventListener('click', creer);
+
+    if (!session) {
+      zoneConnexion.hidden = false;
+      return;
+    }
+    quiSuisJe().then(function (ok) {
+      if (ok) { ouvrirLAtelier(); return; }
+      rafraichir().then(function (r) {
+        if (!r) {
+          oublierSession();
+          zoneConnexion.hidden = false;
+          return;
+        }
+        quiSuisJe().then(function (ok2) {
+          if (ok2) ouvrirLAtelier();
+          else { oublierSession(); zoneConnexion.hidden = false; }
+        });
+      });
+    });
+  }
+
+  demarrer();
+})();
+</script>
+</body>
+</html>

@@ -28,3 +28,36 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# ---------------------------------------------------------------------
+# EN-TETES -- section CREEE le 18/09/2026 (BKL-CIN-096 (b) lot 2).
+# ---------------------------------------------------------------------
+# admin.html est la PAGE PRIVEE d'administration de la file. Elle n'est
+# liee depuis AUCUNE autre page -- ni index.html, ni file.html -- et elle
+# ne doit etre ni indexee, ni suivie.
+#
+# L'EN-TETE, ET PAS SEULEMENT LA BALISE. La page porte aussi
+# <meta name="robots" content="noindex, nofollow">, mais c'est CET
+# en-tete qui fait foi a la recette : une balise vit dans le corps du
+# document, un en-tete voyage avec la reponse et se mesure sans ouvrir la
+# page (curl -I).
+#
+# Verifie a la documentation Netlify le 18/09/2026
+# (docs.netlify.com/manage/routing/headers/) : la syntaxe est bien
+# [[headers]] / for / [headers.values] ; les en-tetes personnalises
+# s'appliquent aux FICHIERS STATIQUES servis par Netlify -- et NON au
+# contenu proxifie ni aux reponses des functions, qui doivent porter les
+# leurs. admin.html est un fichier statique : il est couvert.
+# 'X-Robots-Tag' ne figure pas dans la liste des en-tetes que Netlify
+# ignore.
+#
+# PORTEE VOLONTAIREMENT ETROITE : '/admin.html' et rien d'autre.
+# index.html et file.html gardent leur comportement -- file.html porte
+# deja sa propre balise 'noindex', et le service public ne change pas.
+# La securite de cette page ne repose de toute facon PAS sur l'obscurite :
+# c'est la base qui decide (policies nominatives, 05-page-privee-w2.sql).
+# Cet en-tete evite qu'elle traine dans un index, il ne la protege pas.
+[[headers]]
+  for = "/admin.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
