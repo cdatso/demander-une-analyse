@@ -72,9 +72,14 @@ const RACINE = join(ICI, '..');
 
 // EXACTEMENT le pathspec de la rubrique 8 du mandat -- ce qui sera
 // commite, et rien d'autre. node_modules/ n'y est pas.
+// 'admin.html' ajoute le 18/09/2026 (BKL-CIN-096 (b) lot 2) : la page
+// privee d'administration est nee ce jour-la, elle est SERVIE, et elle
+// porte les deux memes emplacements de configuration que file.html.
+// Sans cette ligne, ce controle etait VERT PAR CECITE sur elle -- mesure
+// le 18/09 : le mot 'admin' n'apparaissait nulle part dans sa sortie.
 const A_INSPECTER = [
   'netlify', 'outils', 'supabase', 'fixtures',
-  'index.html', 'file.html', 'netlify.toml',
+  'index.html', 'file.html', 'admin.html', 'netlify.toml',
   'package.json', 'package-lock.json',
   'GUIDE-TEST-EN-LIGNE.md', 'README.md', '.gitignore'
 ];
@@ -245,53 +250,75 @@ if (detail.length > 0) {
 // Un emplacement ABSENT reste un defaut, comme avant : sans lui, AH ne
 // saurait pas ou poser la valeur.
 
-console.log('  --- Les deux emplacements de file.html (arbitrage n.10, attendu amende le 25/08) ---');
-const PREFIXE_PUBLIABLE_ATTENDU = 'sb_publishable_';
-let page = '';
-try { page = readFileSync(join(RACINE, 'file.html'), 'utf8'); } catch (e) { page = ''; }
+// AMENDEMENT DU 2026-09-18 (BKL-CIN-096 (b) lot 2) -- CETTE PASSE NE
+// REGARDAIT QUE file.html.
+// admin.html, la page privee d'administration, est nee au lot 2 et porte
+// LES DEUX MEMES emplacements. Elle ne figurait ni dans A_INSPECTER ni
+// ici : ce controle etait donc VERT PAR CECITE sur elle. Si la clef
+// SECRETE y avait ete collee, rien ne l'aurait vu, et K-5 ("proprete
+// verte avant chaque commit") aurait ete satisfait sans rien garantir --
+// sur la page qui detient justement le JETON DE SESSION d'AH, c'est-a-dire
+// celle ou l'erreur couterait le plus cher.
+// La passe boucle desormais sur TOUTES les pages servies qui portent ces
+// emplacements. En ajouter une, c'est ajouter une ligne a PAGES_SERVIES
+// -- et a A_INSPECTER.
+const PAGES_SERVIES = ['file.html', 'admin.html'];
 
-function lireEmplacement(nom) {
+console.log('  --- Les deux emplacements des PAGES SERVIES (arbitrage n.10, attendus amendes le 25/08 puis le 18/09) ---');
+const PREFIXE_PUBLIABLE_ATTENDU = 'sb_publishable_';
+
+function lireEmplacement(page, nom) {
   const re = new RegExp('(?:var|let|const)\\s+' + nom + "\\s*=\\s*('([^']*)'|\"([^\"]*)\")\\s*;");
   const m = re.exec(page);
   if (!m) return { trouve: false, valeur: null };
   return { trouve: true, valeur: m[2] !== undefined ? m[2] : m[3] };
 }
 
-const url = lireEmplacement('SUPABASE_URL');
-let urlConforme = false;
-if (!url.trouve) {
-  console.log('   - [ABSENT  ] SUPABASE_URL : l emplacement est introuvable dans file.html');
-} else if (url.valeur === '') {
-  console.log('   - [VIDE    ] SUPABASE_URL : configuration absente -- attendu VALORISE en production');
-} else {
-  urlConforme = true;
-  console.log('   - [VALORISE] SUPABASE_URL porte une valeur de ' + url.valeur.length +
-              ' caractere(s) -- conforme (adresse de projet, pas un secret)');
-}
+let passeC = true;
+for (const nomPage of PAGES_SERVIES) {
+  let page = '';
+  try { page = readFileSync(join(RACINE, nomPage), 'utf8'); } catch (e) { page = ''; }
+  if (page === '') {
+    console.log('   - [ABSENTE ] ' + nomPage + ' : page introuvable -- ROUGE');
+    passeC = false;
+    continue;
+  }
 
-const cle = lireEmplacement('SUPABASE_CLE_PUBLIABLE');
-let cleConforme = false;
-if (!cle.trouve) {
-  console.log('   - [ABSENT  ] SUPABASE_CLE_PUBLIABLE : l emplacement est introuvable dans file.html');
-} else if (cle.valeur === '') {
-  console.log('   - [VIDE    ] SUPABASE_CLE_PUBLIABLE : configuration absente -- attendu VALORISE en production');
-} else if (!cle.valeur.startsWith(PREFIXE_PUBLIABLE_ATTENDU)) {
-  console.log('   - [!SECRET?] SUPABASE_CLE_PUBLIABLE ne porte PAS le prefixe ' +
-              PREFIXE_PUBLIABLE_ATTENDU + ' -- ROUGE : un prefixe non publiable dans une page servie');
-} else {
-  cleConforme = true;
-  console.log('   - [VALORISE] SUPABASE_CLE_PUBLIABLE porte le prefixe ' + PREFIXE_PUBLIABLE_ATTENDU +
-              ' -- conforme (publiable par construction, S-4)');
-}
+  const url = lireEmplacement(page, 'SUPABASE_URL');
+  if (!url.trouve) {
+    console.log('   - [ABSENT  ] ' + nomPage + ' : SUPABASE_URL introuvable');
+    passeC = false;
+  } else if (url.valeur === '') {
+    console.log('   - [VIDE    ] ' + nomPage + ' : SUPABASE_URL -- configuration absente, attendu VALORISE en production');
+    passeC = false;
+  } else {
+    console.log('   - [VALORISE] ' + nomPage + ' : SUPABASE_URL porte une valeur de ' + url.valeur.length +
+                ' caractere(s) -- conforme (adresse de projet, pas un secret)');
+  }
 
-const passeC = urlConforme && cleConforme;
+  const cle = lireEmplacement(page, 'SUPABASE_CLE_PUBLIABLE');
+  if (!cle.trouve) {
+    console.log('   - [ABSENT  ] ' + nomPage + ' : SUPABASE_CLE_PUBLIABLE introuvable');
+    passeC = false;
+  } else if (cle.valeur === '') {
+    console.log('   - [VIDE    ] ' + nomPage + ' : SUPABASE_CLE_PUBLIABLE -- configuration absente, attendu VALORISE en production');
+    passeC = false;
+  } else if (!cle.valeur.startsWith(PREFIXE_PUBLIABLE_ATTENDU)) {
+    console.log('   - [!SECRET?] ' + nomPage + ' : SUPABASE_CLE_PUBLIABLE ne porte PAS le prefixe ' +
+                PREFIXE_PUBLIABLE_ATTENDU + ' -- ROUGE : un prefixe non publiable dans une page servie');
+    passeC = false;
+  } else {
+    console.log('   - [VALORISE] ' + nomPage + ' : SUPABASE_CLE_PUBLIABLE porte le prefixe ' +
+                PREFIXE_PUBLIABLE_ATTENDU + ' -- conforme (publiable par construction, S-4)');
+  }
+}
 
 // ---------------------------------------------------------------------
 
 console.log('');
 console.log('  TOTAL : ' + totalBrut + ' occurrence(s) brute(s) de vrais motifs de secret, ' +
             (totalValorise + motsDePasse) + ' valorisee(s) (secrets reels + mots de passe) ; ' +
-            'passe C (file.html) ' + (passeC ? 'CONFORME' : 'NON CONFORME') + '.');
+            'passe C (' + PAGES_SERVIES.join(' + ') + ') ' + (passeC ? 'CONFORME' : 'NON CONFORME') + '.');
 
 const vert = totalValorise === 0 && motsDePasse === 0 && passeC && manquants.length === 0;
 console.log(vert
