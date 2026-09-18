@@ -1,4 +1,31 @@
 -- 01-table-demandes.sql
+--
+-- =====================================================================
+-- NOTE DATEE DU 18/09/2026 -- BKL-CIN-096 (b) lot 2, posture W2.
+-- Rien n'est reecrit ci-dessous : cette note dit ce qui a cesse d'etre
+-- vrai, et ou lire l'etat courant (charte regle 5).
+--
+-- (1) "AUCUNE POLICY". Les phrases de ce fichier qui l'affirment --
+--     l. 11 ("ici, AUCUNE policy sur la table"), l. 100-103 ("il n'y a
+--     DELIBEREMENT AUCUNE POLICY sur la table") et l. 146 -- decrivaient
+--     la posture jusqu'au lot 2. Depuis 05-page-privee-w2.sql, la table
+--     porte TROIS policies NOMINATIVES, qui n'ouvrent la lecture,
+--     le changement d'etape et la creation qu'a UN SEUL UUID : celui
+--     d'AH, authentifie par lien magique depuis admin.html. L'ecriture
+--     par la clef SECRETE, elle, n'a pas change.
+--     L'etat courant se lit dans 05-page-privee-w2.sql, et se MESURE par
+--     les controles n.1 (attendu '3') et n.12 a 18 de
+--     02-controles-demandes.sql.
+--
+-- (2) CE SCRIPT NE SE REJOUE PLUS SEUL SUR LA PRODUCTION. Il commence
+--     par 'drop view' puis 'drop table' : le rejouer DETRUIRAIT toutes
+--     les demandes -- et, depuis le lot 2, il ne reposerait NI les
+--     policies, NI les droits par colonne, NI demandes_journal, NI les
+--     deux declencheurs. Un redeploiement A NEUF se fait donc dans cet
+--     ordre : 01, puis 03, puis 04, puis 05. Sur la base EN PRODUCTION,
+--     on ne joue que 03, 04 et 05.
+-- =====================================================================
+--
 -- Cree la table demandes, active le controle d'acces (RLS) et pose la
 -- VUE PUBLIQUE demandes_publiques.
 -- Prototype d'apprentissage BKL-FOR-006 (fiche A de l'atelier AI-Shift du

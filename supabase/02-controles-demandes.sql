@@ -7,10 +7,15 @@
 -- FORME CONSOLIDEE, reprise de FOR-003 (02-controles.sql, gate AH du
 -- 20/08/2026) et de FOR-004 : le SQL Editor de Supabase n'affiche que le
 -- resultat de la DERNIERE requete d'un script. Une requete par controle
--- n'afficherait donc que le dernier. Les TREIZE controles rendent ici UN
+-- n'afficherait donc que le dernier. Les DIX-NEUF controles rendent ici UN
 -- SEUL tableau -- colonnes ordre / controle / mesure / attendu -- et
 -- chaque controle porte AUSSI son attendu en commentaire, juste au-dessus
 -- de sa ligne, comme l'exige le mandat.
+--
+-- HISTORIQUE DU NOMBRE : douze jusqu'au 16/09/2026 ; treize au lot 0
+-- (controle n.12, droits par defaut, R-023) ; DIX-NEUF au lot 2 du
+-- 18/09/2026 -- le n.1 et le n.12 AMENDES par la posture W2, et SIX
+-- controles neufs (n.13 a n.18) pour la page privee.
 --
 -- REGLE DE LECTURE : un controle est vert quand la MESURE satisfait
 -- l'ATTENDU de la meme ligne. Un controle sans attendu ne controle rien.
@@ -18,8 +23,12 @@
 -- A jouer TEL QUEL (tout selectionner, Run). Joue sur une table vide, il
 -- rend des zeros aux controles de contenu : c'est correct et cela se lit
 -- -- le controle 5 a 0 ligne signifie "aucune demande recue", pas
--- "panne". Les controles 0 a 4, 10 et 12, eux, sont vrais des la
--- creation.
+-- "panne". Les controles 0 a 4, 10, et 12 a 18, eux, sont vrais des la
+-- creation -- ceux de la posture ne dependent d'aucune donnee.
+--
+-- LES CONTROLES 1 ET 12 A 18 SUPPOSENT QUE 05-page-privee-w2.sql A ETE
+-- JOUE. Avant lui, le n.1 rend '0' (et non '3'), et les n.13 a 18 sont
+-- rouges ou vides : ce n'est pas une panne, c'est l'ordre des gestes.
 --
 -- CE QUE CE SCRIPT NE PROUVE PAS, et qui se prouve ailleurs : que la
 -- clef PUBLIABLE lit bien la vue et ne lit PAS la table. Cette mesure
@@ -39,11 +48,21 @@ select 0 as ordre,
 union all
 select 1,
        'nombre de policies sur demandes',
-       -- attendu : 0 -- AUCUNE policy, pas une seule : l'ecriture passe
-       -- par la clef secrete, la lecture par la vue
+       -- attendu : 3 -- AMENDE LE 18/09/2026 (BKL-CIN-096 (b) lot 2,
+       -- posture W2, script 05-page-privee-w2.sql). L'attendu etait '0'
+       -- depuis l'origine : "AUCUNE policy, pas une seule", parce que
+       -- l'ecriture venait de la clef secrete SEULE et la lecture de la
+       -- vue. La page privee ouvre un SECOND chemin d'ecriture, celui
+       -- d'AH authentifie, et ce chemin est borne par TROIS policies
+       -- NOMINATIVES : demandes_ah_lecture, demandes_ah_etape,
+       -- demandes_ah_creation. Trois, pas une de plus : le controle n.17
+       -- verifie en outre qu'elles ne nomment qu'UN SEUL UUID.
+       -- La regle D-1 du PATRON-SERVICE-SERVERLESS ("RLS activee, aucune
+       -- policy") cesse de decrire ce service le jour ou 05 est joue ;
+       -- son amendement est un geste du greffe, pas de ce fichier.
        (select count(*)::text from pg_policies
          where schemaname = 'public' and tablename = 'demandes'),
-       '0'
+       '3'
 
 union all
 select 2,
@@ -168,38 +187,250 @@ select 11,
 
 union all
 select 12,
-       'droits d anon et d authenticated (ecritures / lecture publique)',
-       -- attendu : 0 / true (BKL-CIN-096 (b) lot 0, RISKLOG R-023).
-       -- (i) avant la barre : nombre de privileges INSERT, UPDATE, DELETE,
-       -- TRUNCATE, REFERENCES, TRIGGER detenus par anon ou authenticated
-       -- sur la table demandes ET sur la vue demandes_publiques, PLUS le
-       -- SELECT de ces deux roles sur la TABLE, PLUS le SELECT
-       -- d'authenticated sur la VUE (arbitrage AH, option 1) -> 0. Sinon
-       -- la clef publiable peut ECRIRE par la vue (simple, donc
-       -- modifiable, et executee avec les droits de postgres) : la borne
-       -- "AH seul change une etape" tombe.
-       -- (ii) apres la barre : anon garde SELECT sur la vue -> true. Sinon
-       -- file.html ne lit plus rien et la file publique est vide.
-       -- MESURE par has_table_privilege, qui compte AUSSI les droits
-       -- herites d'un role et ceux accordes a PUBLIC.
-       -- information_schema.role_table_grants (la requete G-1, bloc
-       -- optionnel plus bas) ne voit que les droits DIRECTS : G-1 reste la
-       -- lecture croisee, pas le controle.
-       -- CE CONTROLE DEVIENDRA FAUX PAR CONSTRUCTION au lot 2 (page
-       -- privee) si l'architecture W2 accorde des droits a authenticated
-       -- sur la table : il s'amendera dans ce lot-la, pas avant.
+       'droits d anon et d authenticated (vue d ensemble)',
+       -- attendu : 0 / 0 / 0 / true / true
+       --
+       -- AMENDE LE 18/09/2026 (BKL-CIN-096 (b) lot 2, posture W2). Sa
+       -- version du lot 0 attendait 0 SELECT d'authenticated sur la
+       -- TABLE : le script 05 le lui ACCORDE, et ce controle serait donc
+       -- devenu ROUGE PAR CONSTRUCTION. Il s'annoncait lui-meme, l. 188 de
+       -- sa version precedente. Le voici reecrit.
+       --
+       -- (i)   anon : nombre de privileges de TABLE detenus sur demandes
+       --       OU sur demandes_publiques, hors son SELECT sur la vue -> 0.
+       --       anon est la clef publiable, en clair dans file.html : il ne
+       --       doit RIEN pouvoir d'autre que lire la vue.
+       -- (ii)  authenticated : privileges de TABLE qu'il ne doit PAS
+       --       detenir -- DELETE, TRUNCATE, TRIGGER sur la table, et les
+       --       SEPT sur la vue (arbitrage "option 1" du lot 0 : la page
+       --       privee lit la TABLE, pas la vue) -> 0.
+       -- (iii) authenticated : ecarts entre les droits de COLONNE detenus
+       --       et les droits ACCORDES par 05 -- en trop et en moins
+       --       confondus -> 0. Le detail nomme est au controle n.14.
+       -- (iv)  authenticated detient SELECT sur la table -> true (sans
+       --       lui, la page privee n'affiche rien).
+       -- (v)   anon garde SELECT sur la vue -> true (sans lui, file.html
+       --       ne lit plus rien et la file publique est vide).
+       --
+       -- MESURE : has_table_privilege pour les droits de TABLE (il compte
+       -- AUSSI les droits herites d'un role et ceux accordes a PUBLIC),
+       -- has_column_privilege pour les droits de COLONNE. Les deux sont
+       -- necessaires : has_table_privilege ne voit PAS un grant de
+       -- colonne, et c'est precisement la forme que prend W2.
+       -- information_schema.role_table_grants (requete G-1, bloc optionnel
+       -- plus bas) ne voit que les droits DIRECTS : G-1 reste la lecture
+       -- croisee, pas le controle.
        (select count(*)::text
-          from (values ('anon'), ('authenticated')) as r(role)
-         cross join (values ('public.demandes'), ('public.demandes_publiques')) as o(objet)
+          from (values ('public.demandes'), ('public.demandes_publiques')) as o(objet)
          cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'),
                             ('REFERENCES'), ('TRIGGER'), ('SELECT')) as p(privilege)
-         where has_table_privilege(r.role::name, o.objet, p.privilege)
-           and not (p.privilege = 'SELECT'
-                    and o.objet = 'public.demandes_publiques'
-                    and r.role = 'anon'))
+         where has_table_privilege('anon'::name, o.objet, p.privilege)
+           and not (p.privilege = 'SELECT' and o.objet = 'public.demandes_publiques'))
+       || ' / ' ||
+       (select count(*)::text
+          from (values ('public.demandes', 'DELETE'),
+                       ('public.demandes', 'TRUNCATE'),
+                       ('public.demandes', 'TRIGGER'),
+                       ('public.demandes_publiques', 'SELECT'),
+                       ('public.demandes_publiques', 'INSERT'),
+                       ('public.demandes_publiques', 'UPDATE'),
+                       ('public.demandes_publiques', 'DELETE'),
+                       ('public.demandes_publiques', 'TRUNCATE'),
+                       ('public.demandes_publiques', 'REFERENCES'),
+                       ('public.demandes_publiques', 'TRIGGER')) as x(objet, privilege)
+         where has_table_privilege('authenticated'::name, x.objet, x.privilege))
+       || ' / ' ||
+       (select (
+          (select count(*) from (
+             (select c.column_name::text, p.privilege::text
+                from information_schema.columns c
+               cross join (values ('INSERT'), ('UPDATE'), ('REFERENCES')) as p(privilege)
+               where c.table_schema = 'public' and c.table_name = 'demandes'
+                 and has_column_privilege('authenticated'::name, 'public.demandes',
+                                          c.column_name::text, p.privilege))
+             except
+             (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
+                     ('annee', 'INSERT'), ('statut', 'INSERT'),
+                     ('decideur', 'INSERT'), ('statut', 'UPDATE'))) as en_trop)
+          +
+          (select count(*) from (
+             (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
+                     ('annee', 'INSERT'), ('statut', 'INSERT'),
+                     ('decideur', 'INSERT'), ('statut', 'UPDATE'))
+             except
+             (select c.column_name::text, p.privilege::text
+                from information_schema.columns c
+               cross join (values ('INSERT'), ('UPDATE'), ('REFERENCES')) as p(privilege)
+               where c.table_schema = 'public' and c.table_name = 'demandes'
+                 and has_column_privilege('authenticated'::name, 'public.demandes',
+                                          c.column_name::text, p.privilege))) as en_moins)
+       )::text)
+       || ' / ' ||
+       has_table_privilege('authenticated'::name, 'public.demandes', 'SELECT')::text
        || ' / ' ||
        has_table_privilege('anon'::name, 'public.demandes_publiques', 'SELECT')::text,
-       '0 / true'
+       '0 / 0 / 0 / true / true'
+
+union all
+select 13,
+       'anon : droits de COLONNE sur demandes',
+       -- attendu : 0 (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle NEUF).
+       -- Le controle n.12 mesure les droits de TABLE. Un grant de COLONNE
+       -- a anon ne s'y verrait PAS : has_table_privilege ne regarde que
+       -- l'etage table. Ce controle ferme ce trou-la, colonne par colonne,
+       -- pour les quatre privileges qui s'accordent par colonne.
+       -- Un seul de ces droits, et la clef publiable ecrit dans la table.
+       (select count(*)::text
+          from information_schema.columns c
+         cross join (values ('SELECT'), ('INSERT'), ('UPDATE'),
+                            ('REFERENCES')) as p(privilege)
+         where c.table_schema = 'public' and c.table_name = 'demandes'
+           and has_column_privilege('anon'::name, 'public.demandes',
+                                    c.column_name::text, p.privilege)),
+       '0'
+
+union all
+select 14,
+       'authenticated : les SIX droits de colonne accordes, et rien d autre',
+       -- attendu : 6 / 0 (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle
+       -- NEUF). C'est le "que" de la posture, rendu lisible :
+       -- (i) avant la barre : combien des SIX paires (colonne, privilege)
+       --     accordees par 05 sont effectivement detenues --
+       --     insert sur titre, realisateur, annee, statut, decideur ;
+       --     update sur statut -> 6. Moins de six, la page ne peut plus
+       --     faire son travail.
+       -- (ii) apres la barre : combien de paires detenues EN TROP -> 0.
+       --     Une seule paire en trop -- update (titre), par exemple -- et
+       --     la borne "la page ne change QUE l etape" tombe.
+       -- Le n.12 (iii) agrege ces deux nombres ; celui-ci les separe, pour
+       -- qu'un rouge dise TOUT DE SUITE de quel cote il penche.
+       (select count(*)::text
+          from (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
+                       ('annee', 'INSERT'), ('statut', 'INSERT'),
+                       ('decideur', 'INSERT'), ('statut', 'UPDATE')) as a(colonne, privilege)
+         where has_column_privilege('authenticated'::name, 'public.demandes',
+                                    a.colonne, a.privilege))
+       || ' / ' ||
+       (select count(*)::text from (
+          (select c.column_name::text, p.privilege::text
+             from information_schema.columns c
+            cross join (values ('INSERT'), ('UPDATE'), ('REFERENCES')) as p(privilege)
+            where c.table_schema = 'public' and c.table_name = 'demandes'
+              and has_column_privilege('authenticated'::name, 'public.demandes',
+                                       c.column_name::text, p.privilege))
+          except
+          (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
+                  ('annee', 'INSERT'), ('statut', 'INSERT'),
+                  ('decideur', 'INSERT'), ('statut', 'UPDATE'))) as en_trop),
+       '6 / 0'
+
+union all
+select 15,
+       'demandes_journal : existe / RLS / policies / droits publics',
+       -- attendu : 1 / true / 0 / 0 (BKL-CIN-096 (b) lot 2, 18/09/2026 --
+       -- controle NEUF). Le journal est la TRACE : qui a change quoi,
+       -- quand, depuis quelle valeur. Il est ferme DEUX FOIS --
+       -- (i) la table existe -> 1 ;
+       -- (ii) la RLS est activee -> true ;
+       -- (iii) aucune policy -> 0 : personne ne le lit par l API ;
+       -- (iv) aucun droit pour anon ni authenticated -> 0 : la commande
+       --      elle-meme est close, pas seulement les lignes. Un objet neuf
+       --      du schema public peut naitre avec les droits par defaut de
+       --      la plateforme (R-023) : ce controle le verifie APRES coup.
+       -- AH lit ce journal au Table Editor (voie privilegiee). Ne rien y
+       -- voir par l API n'est pas une panne.
+       (select count(*)::text from pg_class
+         where oid = to_regclass('public.demandes_journal'))
+       || ' / ' ||
+       coalesce((select relrowsecurity::text from pg_class
+                  where oid = to_regclass('public.demandes_journal')), '(absente)')
+       || ' / ' ||
+       (select count(*)::text from pg_policies
+         where schemaname = 'public' and tablename = 'demandes_journal')
+       || ' / ' ||
+       -- MESURE PAR L ACL DE LA RELATION, et non par has_table_privilege :
+       -- has_table_privilege('...', 'public.demandes_journal', ...) LEVE
+       -- UNE ERREUR si la table n'existe pas encore, et ferait echouer le
+       -- SCRIPT ENTIER au lieu de rendre ce controle rouge. Un controle
+       -- qui casse la recette au lieu de rougir n'est pas un controle.
+       -- aclexplode sur pg_class n'a pas ce defaut : table absente = zero
+       -- ligne. Il voit aussi les droits accordes a PUBLIC (grantee 0).
+       (select count(*)::text
+          from pg_class c
+         cross join lateral aclexplode(coalesce(c.relacl, '{}'::aclitem[])) a
+         where c.oid = to_regclass('public.demandes_journal')
+           and (a.grantee = 0
+                or pg_get_userbyid(a.grantee) in ('anon', 'authenticated'))),
+       '1 / true / 0 / 0'
+
+union all
+select 16,
+       'les DEUX declencheurs de demandes',
+       -- attendu : 2 | demandes_journal_trg, demandes_plafond_trg
+       -- (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle NEUF).
+       -- Sans le premier, aucune trace : le critere E2 du bilan de
+       -- promotion du pilote devient improuvable. Sans le second, le
+       -- plafond de creation n'existe plus -- et la page seule ne garde
+       -- rien, puisque l API reste ouverte a la session d AH (R-026).
+       -- Les NOMS sont affiches : un compte juste avec de mauvais noms
+       -- serait un faux vert.
+       (select count(*)::text from pg_trigger
+         where tgrelid = 'public.demandes'::regclass and not tgisinternal)
+       || ' | ' ||
+       coalesce((select string_agg(tgname, ', ' order by tgname) from pg_trigger
+                  where tgrelid = 'public.demandes'::regclass and not tgisinternal),
+                '(aucun)'),
+       '2 | demandes_journal_trg, demandes_plafond_trg'
+
+union all
+select 17,
+       'UUID distincts nommes dans les policies de demandes',
+       -- attendu : 1 (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle NEUF).
+       -- Les trois policies sont NOMINATIVES : chacune nomme l UUID d AH.
+       -- Ce controle compte les UUID DISTINCTS qu'elles nomment, et n en
+       -- AFFICHE AUCUN : le depot est PUBLIC, la valeur ne doit entrer
+       -- dans aucune piece versionnee. 1 = un seul compte au monde
+       -- satisfait ces policies. 0 = la substitution n a pas eu lieu (ou
+       -- les policies ne nomment plus personne : elles vaudraient alors
+       -- pour TOUT compte authentifie). 2 ou plus = un second compte a ete
+       -- ouvert quelque part, et il faut savoir lequel.
+       (select count(distinct m[1])::text
+          from pg_policies p,
+               lateral regexp_matches(
+                   coalesce(p.qual, '') || ' ' || coalesce(p.with_check, ''),
+                   '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+                   'g') as m
+         where p.schemaname = 'public' and p.tablename = 'demandes'),
+       '1'
+
+union all
+select 18,
+       'plafond : la garde qui laisse passer le role serveur',
+       -- attendu : true (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle
+       -- NEUF). LIRE LA LIMITE DE CE CONTROLE AVANT DE LE CROIRE.
+       --
+       -- CE QU IL MESURE : que la fonction du plafond porte bien sa garde
+       -- de sortie -- "auth.uid() is null -> return new". C est un
+       -- controle de MENTION, pas de VALEUR : il lit le texte de la
+       -- fonction, il ne la fait pas jouer.
+       -- POURQUOI PAS MIEUX ICI : 02 est un script de LECTURE. Eprouver
+       -- le plafond pour de vrai demande une INSERTION, et ce fichier
+       -- n ecrit rien -- c est sa nature et elle ne change pas.
+       -- OU EST LA MESURE DE VALEUR : au bloc optionnel "P-1" en bas de
+       -- ce fichier, a jouer SEPAREMENT par AH. Il insere puis ROLLBACK :
+       -- rien ne reste.
+       -- CE QUE LA GARDE PROTEGE : qualifier.mjs ecrit decideur='AH' pour
+       -- TOUTE demande du formulaire public (l. 790). Un plafond qui
+       -- compterait cette colonne refuserait la onzieme demande PUBLIQUE
+       -- du jour et plafonnerait le SERVICE en production. La garde est
+       -- ce qui rend cela impossible : sans compte authentifie, on sort
+       -- avant de compter quoi que ce soit.
+       (select (pg_get_functiondef(p.oid) like '%v_moi is null%'
+                and pg_get_functiondef(p.oid) not like '%decideur%')::text
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'prive' and p.proname = 'plafond_creation_page'),
+       'true'
 
 order by ordre;
 
@@ -263,4 +494,44 @@ order by ordre;
 --   left join pg_namespace n on n.oid = d.defaclnamespace
 --  where n.nspname = 'public' or d.defaclnamespace = 0
 --  order by proprietaire, schema, type_objet;
+--
+-- ---------------------------------------------------------------------
+-- P-1 -- LA MESURE DE VALEUR DU PLAFOND (controle n.18), a jouer
+-- SEPAREMENT par AH : selectionner le bloc decommente, puis Run.
+-- BKL-CIN-096 (b) lot 2, 18/09/2026.
+--
+-- CE QU IL PROUVE, pour de vrai : que le declencheur de plafond LAISSE
+-- PASSER une insertion faite sans compte authentifie -- c est-a-dire
+-- celle de la clef secrete, celle de qualifier.mjs, celle du formulaire
+-- public. Le controle n.18 ne lit que le TEXTE de la fonction ; celui-ci
+-- la fait JOUER.
+--
+-- POURQUOI C EST SANS DANGER : tout est dans une transaction terminee
+-- par ROLLBACK. La ligne inseree et sa ligne de journal disparaissent
+-- toutes les deux. Rien ne reste, pas meme l id consomme (la sequence,
+-- elle, avance -- c est normal et sans consequence).
+-- L editeur SQL joue en tant que 'postgres' : auth.uid() y est NUL, ce
+-- qui est exactement le cas a eprouver.
+--
+-- ATTENDU : la transaction va jusqu'au bout sans erreur, et la ligne de
+-- controle rend 'insertion acceptee sans compte authentifie'. Si le
+-- declencheur levait "Plafond atteint", la prescription serait FAUSSE et
+-- le service en production serait plafonne : ARRET, et on le signale.
+--
+-- begin;
+--
+-- insert into public.demandes (titre, statut, decideur)
+-- values ('P-1 controle du plafond -- A ROLLBACK', 'proposee', 'AH');
+--
+-- select 'insertion acceptee sans compte authentifie' as resultat,
+--        auth.uid() is null as auth_uid_nul,
+--        current_user as role_courant;
+--
+-- rollback;
+--
+-- Puis, APRES le rollback, verifier qu il ne reste rien -- attendu : 0.
+--
+-- select count(*) as restes
+--   from public.demandes
+--  where titre = 'P-1 controle du plafond -- A ROLLBACK';
 -- ---------------------------------------------------------------------

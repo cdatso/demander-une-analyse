@@ -1,4 +1,33 @@
 -- 03-droits-vue-publique.sql
+--
+-- =====================================================================
+-- NOTE DATEE DU 18/09/2026 -- BKL-CIN-096 (b) lot 2, posture W2.
+-- Rien n'est reecrit ci-dessous (charte regle 5).
+--
+-- Deux phrases de ce fichier ont cesse d'etre vraies :
+--   * l. 54 : "Tant que la table n'a aucune policy, la RLS filtrait deja
+--     les LIGNES." La table porte desormais TROIS policies NOMINATIVES
+--     (05-page-privee-w2.sql).
+--   * l. 86 : "Le revoke sur la TABLE ne se defait pas : la table n'a
+--     aucune policy, un droit rendu n'ouvrirait aucune ligne
+--     aujourd'hui." Ce n'est plus le cas : depuis le lot 2, un droit
+--     rendu a authenticated OUVRIRAIT les lignes que les policies
+--     laissent passer. Le revoke de la l. 60 reste donc necessaire, et
+--     il est RAPPELE en tete de 05 -- qui accorde ensuite, par COLONNE,
+--     le strict minimum.
+--
+-- CE QUI N'A PAS CHANGE, et c'est l'essentiel : anon -- la clef
+-- publiable, en clair dans file.html -- ne detient TOUJOURS rien d'autre
+-- que SELECT sur la vue. Le lot 2 n'a rien accorde a anon.
+-- Le revoke du SELECT d'authenticated sur la VUE (l. 49) reste lui aussi
+-- entier : la page privee lit la TABLE, pas la vue -- elle a besoin de
+-- motif et de mail, que la vue ne porte pas. La question posee l. 48
+-- ("Si le lot 2 en a besoin, il le reposera") est donc tranchee : NON.
+--
+-- Etat courant : 05-page-privee-w2.sql ; mesure : controles n.12 a 18 de
+-- 02-controles-demandes.sql.
+-- =====================================================================
+--
 -- Retire a la clef PUBLIABLE (role anon) et au role authenticated tout
 -- droit d'ECRITURE sur la vue publique demandes_publiques et tout droit
 -- sur la table demandes. BKL-CIN-096 (b) lot 0, 16/09/2026.
