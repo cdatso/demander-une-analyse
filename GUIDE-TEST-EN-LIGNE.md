@@ -1,13 +1,17 @@
 ﻿# Test en ligne — « Demander une analyse » (fiche A)
 
-**Tes douze gestes, tels qu'exécutés.** Le service tourne en production
+**Tes seize gestes, tels qu'exécutés.** Le service tourne en production
 depuis le 25/08/2026 (08h19) sous **https://demande.cdatso.be**. Ce guide
 reste la référence de ces gestes — utile pour un redéploiement à neuf ou
 un audit, pas pour une mise en ligne restant à faire.
+*Gestes ① à ⑫ : le service public. Gestes ⑬ à ⑯ : la page privée
+d'administration, ajoutée le 18/09/2026 (BKL-CIN-096 lot 2).*
 
 **La borne, avant tout** : la clé de l'API Claude et la clé **secrète**
 Supabase ne sortent **jamais** des variables d'environnement. Seule la clé
-**publiable** entre dans `file.html` : c'est son rôle.
+**publiable** entre dans `file.html` et dans `admin.html` : c'est son
+rôle, et elle n'ouvre rien par elle-même — la table n'accorde aucun droit
+au rôle `anon`.
 
 **① Le dépôt.** Crée `cdatso/demander-une-analyse` sur GitHub (public),
 puis depuis `C:\Users\cdats\Claude\SRV\demander-une-analyse` :
@@ -62,7 +66,7 @@ peur`, `Henri-Georges Clouzot`, `1953`. **Attendu** : accusé
 s'est arrêté.
 
 **⑩ Les contrôles.** *SQL Editor* → `supabase/02-controles-demandes.sql`
-→ *Run*. Un seul tableau, treize lignes (douze jusqu'au 16/09/2026, contrôle n°12 ajouté par BKL-CIN-096 lot 0), colonnes *mesure* et *attendu* :
+→ *Run*. Un seul tableau, **dix-neuf** lignes (douze jusqu'au 16/09/2026 ; treize au lot 0, contrôle n°12 ; dix-neuf au lot 2 du 18/09/2026, n°1 et n°12 amendés et n°13 à 18 neufs), colonnes *mesure* et *attendu* :
 la table est certifiée quand chaque mesure satisfait son attendu. Le
 contrôle 5 doit montrer **une** demande, pas deux — les Tontons ne
 s'insèrent pas.
@@ -103,12 +107,98 @@ que la clé publiable ne peut rien **modifier**. Joue la procédure
 construites pour ne toucher aucune ligne, dont l'attendu est une **erreur
 de droit partout**.
 
+
 **⑫ Arrêter le service.** Netlify → *Site configuration* → *Stop builds*
 coupe les déploiements ; supprimer le site coupe tout. La table survit :
 `drop view public.demandes_publiques; drop table public.demandes;` la
 retire. *Voie non vérifiée en ligne par la session préparatoire — elle
 n'avait aucun accès à Netlify ni à Supabase.*
 
+---
+
+## La page privée d'administration (BKL-CIN-096 lot 2, 18/09/2026)
+
+*Gestes ⑬ à ⑯, ajoutés le 18/09/2026. La page vit à
+`https://demande.cdatso.be/admin.html`, elle n'est **liée depuis aucune
+autre page**, et elle est servie en `noindex, nofollow` **par en-tête**.
+La sécurité ne repose pas là-dessus : c'est la **base** qui décide.*
+
+**⑬ Les quatre gestes du tableau de bord, dans cet ordre.** Ils précèdent
+le SQL, et deux d'entre eux ne se devinent pas :
+
+1. *Authentication* → *Users* → **Add user** : un compte, à ton adresse.
+2. *Authentication* → *Sign In / Providers* → **ferme les inscriptions**
+   (« Allow new users to sign up » → off). C'est l'un des trois verrous ;
+   `outils/controler-page-privee.mjs` le **mesure** (geste ⑯).
+3. Relève ton **UID** (colonne *UID* de ton compte).
+4. *Authentication* → *URL Configuration* → ajoute
+   **`https://demande.cdatso.be/admin.html`** aux **« Redirect URLs »**.
+   **Sans ce geste, le lien magique repart vers la « Site URL »**, en
+   silence, et la connexion n'aboutit jamais sur la page.
+
+**⑭ Le SQL de la posture.** *SQL Editor* → colle
+`supabase/05-page-privee-w2.sql` → remplace les **quatre** occurrences du
+paramètre d'UUID (`Ctrl+H`, *Replace all*) → *Run*.
+
+> ⚠️ **Substitue dans l'ÉDITEUR, jamais dans le fichier du dépôt** — il est
+> **public**. Travaille sur une copie placée **hors de tout dépôt**, et
+> n'enregistre pas le fichier versionné. *(Le 18/09, un « Replace all » a
+> écrit la valeur dans le fichier du dépôt : la consigne du script
+> contenait alors la chaîne qu'elle faisait remplacer. Corrigé — mais le
+> geste reste à ta main.)*
+
+Attendu : quatre lignes — policies `3`, déclencheurs `3`,
+`demandes_journal` `1 / true / 0`, UUID distincts `1`. Puis
+`supabase/02-controles-demandes.sql` : **dix-neuf** lignes.
+
+**⑮ Les DEUX épreuves du plafond — et il faut les deux.** Blocs optionnels
+en bas de `02-controles-demandes.sql`, à jouer **séparément** :
+
+| | Ce qu'elle prouve |
+|---|---|
+| **P-1** | le plafond **laisse passer** le rôle serveur — donc le formulaire public écrit toujours |
+| **P-2** | le plafond **refuse** la onzième création de la page, en **onze instructions séparées** (cas A) **et** en **une seule instruction de onze lignes** (cas B) |
+
+> ⚠️ **P-1 seul ne prouve rien.** Le 18/09, une garde fautive
+> (`current_user` dans une fonction `security definer`) a rendu le plafond
+> **inerte** : P-1 était vert, les dix-neuf contrôles étaient verts, et
+> rien ne refusait quoi que ce soit. **Une garde se prouve des deux
+> côtés.** P-2 porte un auto-contrôle (`select auth.uid() is not null`) :
+> s'il rend `false`, **arrête-toi** — les insertions qui suivraient ne
+> mesureraient rien.
+
+**⑯ La recette de la page servie.** Sans jeton :
+
+```
+curl -I https://demande.cdatso.be/admin.html
+curl -I https://demande.cdatso.be/admin
+```
+
+**Attendu : `x-robots-tag: noindex, nofollow` sur les DEUX adresses** —
+Netlify sert aussi la page sans son extension. La mesure se fait sur
+l'**en-tête**, pas sur la balise. Puis :
+
+```
+node outils/controler-page-privee.mjs
+```
+
+**Attendu : `exit 0`** — 8/8 refus de droit (`401 / 42501`) avec la clé
+publiable seule, et `disable_signup = true`.
+
+Enfin, **ton geste, celui qu'aucun outil ne fait à ta place** : ouvre la
+page, demande un lien magique, révise **une** demande, et vérifie au
+*Table Editor* que `demandes_journal` porte sa ligne (qui, quand, avant,
+après).
+
+> Le courrier intégré de Supabase est **plafonné à quelques envois par
+> heure** : ne redemande pas un lien en rafale. La session vit dans
+> l'onglet et meurt avec lui.
+
+> ⚠️ **Ne fais jamais ouvrir cette page par un agent qui pilote ton
+> navigateur réel** : il agirait dans ta session ouverte et pourrait poser
+> une étape « comme toi » (R-026).
+
+---
 ---
 
 *Le service alimente une table ; **tu** décides. Rien ne s'écrit jamais
