@@ -7,15 +7,23 @@
 -- FORME CONSOLIDEE, reprise de FOR-003 (02-controles.sql, gate AH du
 -- 20/08/2026) et de FOR-004 : le SQL Editor de Supabase n'affiche que le
 -- resultat de la DERNIERE requete d'un script. Une requete par controle
--- n'afficherait donc que le dernier. Les DIX-NEUF controles rendent ici UN
--- SEUL tableau -- colonnes ordre / controle / mesure / attendu -- et
+-- n'afficherait donc que le dernier. Les VINGT-CINQ controles rendent ici
+-- UN SEUL tableau -- colonnes ordre / controle / mesure / attendu -- et
 -- chaque controle porte AUSSI son attendu en commentaire, juste au-dessus
 -- de sa ligne, comme l'exige le mandat.
 --
 -- HISTORIQUE DU NOMBRE : douze jusqu'au 16/09/2026 ; treize au lot 0
 -- (controle n.12, droits par defaut, R-023) ; DIX-NEUF au lot 2 du
 -- 18/09/2026 -- le n.1 et le n.12 AMENDES par la posture W2, et SIX
--- controles neufs (n.13 a n.18) pour la page privee.
+-- controles neufs (n.13 a n.18) pour la page privee ; VINGT-CINQ au lot S
+-- de BKL-CIN-098, le 19/09/2026 -- les n.4, n.7, n.12 et n.14 AMENDES par
+-- la huitieme etape et la colonne page_pilote, et SIX controles neufs
+-- (n.19 a n.24) pour l'adresse de page d'essai et pour le journal fige.
+--
+-- LES CONTROLES 19 A 24, ET LES AMENDEMENTS DES N.4, 7, 12 ET 14,
+-- SUPPOSENT QUE 06-statut-publiee-pilote.sql A ETE JOUE. Avant lui, le
+-- n.4 rend '10 / 12', le n.14 rend '6 / 0', et les n.19 a 24 sont rouges
+-- ou vides : ce n'est pas une panne, c'est l'ordre des gestes.
 --
 -- REGLE DE LECTURE : un controle est vert quand la MESURE satisfait
 -- l'ATTENDU de la meme ligne. Un controle sans attendu ne controle rien.
@@ -87,14 +95,22 @@ select 3,
 union all
 select 4,
        'colonnes de la vue / de la table',
-       -- attendu : 10 / 12 -- douze champs a la table (fiche A), dix a la
-       -- vue : mail et motif retires
+       -- attendu : 11 / 13 -- AMENDE LE 19/09/2026 (BKL-CIN-098 lot S,
+       -- script 06-statut-publiee-pilote.sql). L'attendu etait '10 / 12'
+       -- depuis l'origine : douze champs a la table (fiche A), dix a la
+       -- vue (mail et motif retires). La colonne 'page_pilote' ajoute UN
+       -- champ des DEUX cotes -- la vue l'expose, en DERNIERE position
+       -- (controle n.21). Sans cet amendement, ce controle serait devenu
+       -- ROUGE PAR CONSTRUCTION le jour ou 06 est joue (regle S-6 du
+       -- PATRON : un controle dont l'attendu a change reste rouge, et il
+       -- cesse d'etre un detecteur).
+       -- mail et motif restent hors de la vue : c'est le controle n.3.
        (select count(*)::text from information_schema.columns
          where table_schema = 'public' and table_name = 'demandes_publiques')
        || ' / ' ||
        (select count(*)::text from information_schema.columns
          where table_schema = 'public' and table_name = 'demandes'),
-       '10 / 12'
+       '11 / 13'
 
 union all
 select 5,
@@ -117,16 +133,25 @@ select 6,
 
 union all
 select 7,
-       'statuts hors des sept valeurs',
+       'statuts hors des huit valeurs',
        -- attendu : 0 -- la contrainte demandes_statut_check le garantit ;
        -- ce controle verifie qu'elle est bien en place et non desactivee.
        -- Sept valeurs depuis BKL-CIN-096 (b) lot 1 : publication_pilote
        -- (A10, Q2, 16/09/2026), jouee en production par
        -- 04-etape-publication-pilote.sql.
+       -- HUIT depuis BKL-CIN-098 lot S (19/09/2026) : publiee_pilote,
+       -- jouee par 06-statut-publiee-pilote.sql. C'est l'etape de
+       -- CONSTAT ("la chaine a publie, AH l'a vu") ; celle qui ARME
+       -- reste publication_pilote.
+       -- LA LISTE CI-DESSOUS EST UNE RECOPIE de la contrainte : si la
+       -- contrainte gagne une valeur et pas cette liste, ce controle
+       -- rougit sur une base saine. C'est voulu -- il force la mise a
+       -- jour. Le nombre de valeurs de la CONTRAINTE elle-meme se lit au
+       -- controle immediat de 06.
        (select count(*)::text from public.demandes
          where statut not in ('proposee', 'a_traiter', 'publication_pilote',
-                              'scholar', 'candidat', 'mise_de_cote',
-                              'traitee')),
+                              'publiee_pilote', 'scholar', 'candidat',
+                              'mise_de_cote', 'traitee')),
        '0'
 
 union all
@@ -205,8 +230,13 @@ select 12,
        --       SEPT sur la vue (arbitrage "option 1" du lot 0 : la page
        --       privee lit la TABLE, pas la vue) -> 0.
        -- (iii) authenticated : ecarts entre les droits de COLONNE detenus
-       --       et les droits ACCORDES par 05 -- en trop et en moins
-       --       confondus -> 0. Le detail nomme est au controle n.14.
+       --       et les droits ACCORDES par 05, PUIS par 06 -- en trop et
+       --       en moins confondus -> 0. Le detail nomme est au n.14.
+       --       AMENDE LE 19/09/2026 (BKL-CIN-098 lot S) : la liste de
+       --       reference passe de SIX a SEPT paires -- 06 ajoute
+       --       'update (page_pilote)'. Sans cet amendement, (iii) aurait
+       --       compte une paire "en trop" et ce controle serait devenu
+       --       ROUGE PAR CONSTRUCTION (regle S-6 du PATRON).
        -- (iv)  authenticated detient SELECT sur la table -> true (sans
        --       lui, la page privee n'affiche rien).
        -- (v)   anon garde SELECT sur la vue -> true (sans lui, file.html
@@ -251,12 +281,14 @@ select 12,
              except
              (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
                      ('annee', 'INSERT'), ('statut', 'INSERT'),
-                     ('decideur', 'INSERT'), ('statut', 'UPDATE'))) as en_trop)
+                     ('decideur', 'INSERT'), ('statut', 'UPDATE'),
+                     ('page_pilote', 'UPDATE'))) as en_trop)
           +
           (select count(*) from (
              (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
                      ('annee', 'INSERT'), ('statut', 'INSERT'),
-                     ('decideur', 'INSERT'), ('statut', 'UPDATE'))
+                     ('decideur', 'INSERT'), ('statut', 'UPDATE'),
+                     ('page_pilote', 'UPDATE'))
              except
              (select c.column_name::text, p.privilege::text
                 from information_schema.columns c
@@ -291,23 +323,27 @@ select 13,
 
 union all
 select 14,
-       'authenticated : les SIX droits de colonne accordes, et rien d autre',
-       -- attendu : 6 / 0 (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle
-       -- NEUF). C'est le "que" de la posture, rendu lisible :
-       -- (i) avant la barre : combien des SIX paires (colonne, privilege)
-       --     accordees par 05 sont effectivement detenues --
-       --     insert sur titre, realisateur, annee, statut, decideur ;
-       --     update sur statut -> 6. Moins de six, la page ne peut plus
-       --     faire son travail.
+       'authenticated : les SEPT droits de colonne accordes, et rien d autre',
+       -- attendu : 7 / 0 (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle
+       -- NEUF ; AMENDE de 6 a 7 le 19/09/2026, BKL-CIN-098 lot S).
+       -- C'est le "que" de la posture, rendu lisible :
+       -- (i) avant la barre : combien des SEPT paires (colonne,
+       --     privilege) accordees par 05 puis par 06 sont effectivement
+       --     detenues -- insert sur titre, realisateur, annee, statut,
+       --     decideur ; update sur statut ET sur page_pilote -> 7.
+       --     Moins de sept, la page ne peut plus faire son travail : a
+       --     six, elle poserait l etape mais PAS l adresse, et la borne
+       --     de coherence refuserait le geste entier.
        -- (ii) apres la barre : combien de paires detenues EN TROP -> 0.
        --     Une seule paire en trop -- update (titre), par exemple -- et
-       --     la borne "la page ne change QUE l etape" tombe.
+       --     la borne "la page ne change QUE l etape et l adresse" tombe.
        -- Le n.12 (iii) agrege ces deux nombres ; celui-ci les separe, pour
        -- qu'un rouge dise TOUT DE SUITE de quel cote il penche.
        (select count(*)::text
           from (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
                        ('annee', 'INSERT'), ('statut', 'INSERT'),
-                       ('decideur', 'INSERT'), ('statut', 'UPDATE')) as a(colonne, privilege)
+                       ('decideur', 'INSERT'), ('statut', 'UPDATE'),
+                       ('page_pilote', 'UPDATE')) as a(colonne, privilege)
          where has_column_privilege('authenticated'::name, 'public.demandes',
                                     a.colonne, a.privilege))
        || ' / ' ||
@@ -321,8 +357,9 @@ select 14,
           except
           (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
                   ('annee', 'INSERT'), ('statut', 'INSERT'),
-                  ('decideur', 'INSERT'), ('statut', 'UPDATE'))) as en_trop),
-       '6 / 0'
+                  ('decideur', 'INSERT'), ('statut', 'UPDATE'),
+                  ('page_pilote', 'UPDATE'))) as en_trop),
+       '7 / 0'
 
 union all
 select 15,
@@ -453,6 +490,166 @@ select 18,
           join pg_namespace n on n.oid = p.pronamespace
          where n.nspname = 'prive' and p.proname = 'plafond_creation_page'),
        'true'
+
+union all
+select 19,
+       'colonne page_pilote : existe / type / nullable',
+       -- attendu : 1 / text / YES (BKL-CIN-098 lot S, 19/09/2026 --
+       -- controle NEUF). C'est l'adresse de la page publiee sur la
+       -- surface d essai. 'text' et non 'varchar(n)' : une longueur
+       -- arbitraire ne borne rien d utile ici -- c'est la FORME qui
+       -- borne (controle n.20), pas la taille. 'YES' (nullable) parce
+       -- que NUL est l etat normal de la quasi-totalite des lignes :
+       -- une demande n a d adresse que si la chaine a publie.
+       -- NE PAS CONFONDRE avec slug_existant, qui veut dire "deja
+       -- analyse EN PRODUCTION au depot" : les deux corpus restent
+       -- disjoints, et c est pourquoi la colonne est DEDIEE.
+       coalesce((select '1 / ' || data_type || ' / ' || is_nullable
+                   from information_schema.columns
+                  where table_schema = 'public' and table_name = 'demandes'
+                    and column_name = 'page_pilote'), '0 / (absente) / (absente)'),
+       '1 / text / YES'
+
+union all
+select 20,
+       'les DEUX contraintes de page_pilote',
+       -- attendu : 2 | demandes_page_pilote_coherence_check,
+       --               demandes_page_pilote_forme_check
+       -- (BKL-CIN-098 lot S, 19/09/2026 -- controle NEUF.)
+       -- FORME : l adresse est nulle, ou elle appartient exactement a
+       -- https://pilote.cdatso.be/films/<slug>.html. Un lien affiche sur
+       -- une page PUBLIQUE ne doit jamais pouvoir etre arbitraire.
+       -- COHERENCE : publiee_pilote => adresse non nulle ; adresse non
+       -- nulle => publiee_pilote ou traitee.
+       -- LES NOMS SONT AFFICHES : un compte juste avec de mauvais noms
+       -- serait un faux vert -- et le message d erreur que la page
+       -- montrera a AH cite le NOM de la contrainte.
+       -- CE CONTROLE EST UN CONTROLE D EXISTENCE. Il ne prouve pas que
+       -- les contraintes MORDENT : c est ce que font les epreuves P-3 et
+       -- P-4, en bas de ce fichier. Une contrainte presente mais
+       -- declaree 'not valid', ou une expression fautive, passerait
+       -- cette ligne. Une garde se prouve des DEUX cotes.
+       (select count(*)::text from pg_constraint
+         where conrelid = 'public.demandes'::regclass
+           and conname in ('demandes_page_pilote_forme_check',
+                           'demandes_page_pilote_coherence_check'))
+       || ' | ' ||
+       coalesce((select string_agg(conname, ', ' order by conname)
+                   from pg_constraint
+                  where conrelid = 'public.demandes'::regclass
+                    and conname in ('demandes_page_pilote_forme_check',
+                                    'demandes_page_pilote_coherence_check')), '(aucune)'),
+       '2 | demandes_page_pilote_coherence_check, demandes_page_pilote_forme_check'
+
+union all
+select 21,
+       'la vue expose page_pilote, et EN DERNIER',
+       -- attendu : 11 / page_pilote (BKL-CIN-098 lot S, 19/09/2026 --
+       -- controle NEUF).
+       -- EXPOSEE : sans elle dans la vue, file.html -- qui lit la vue
+       -- avec la clef publiable -- ne connaitrait pas l adresse et ne
+       -- pourrait poser aucun lien.
+       -- EN DERNIER, et ce n est pas un gout : PostgreSQL n accepte un
+       -- 'create or replace view' que si les colonnes EXISTANTES gardent
+       -- nom, type et ORDRE. La position de page_pilote est donc la
+       -- preuve que la vue a ete REMPLACEE et non DETRUITE puis recreee
+       -- -- et un objet recree naitrait avec les droits par defaut du
+       -- schema public (R-023). Cette ligne mesure cela aussi.
+       (select count(*)::text from information_schema.columns
+         where table_schema = 'public' and table_name = 'demandes_publiques')
+       || ' / ' ||
+       coalesce((select column_name from information_schema.columns
+                  where table_schema = 'public' and table_name = 'demandes_publiques'
+                  order by ordinal_position desc limit 1), '(aucune)'),
+       '11 / page_pilote'
+
+union all
+select 22,
+       'anon : SELECT sur la vue, et RIEN d autre -- apres remplacement',
+       -- attendu : true / 0 / 0 (BKL-CIN-098 lot S, 19/09/2026 --
+       -- controle NEUF).
+       -- POURQUOI CE CONTROLE EN PLUS DES N.12 ET 13. Le n.12 mesure les
+       -- droits de TABLE, le n.13 les droits de COLONNE d anon SUR LA
+       -- TABLE. Aucun des deux ne regarde les droits de COLONNE d anon
+       -- SUR LA VUE -- et c est precisement l objet que 06 remplace.
+       -- has_table_privilege ne voit PAS un droit de colonne : un
+       -- 'grant update (statut) on demandes_publiques to anon' aurait
+       -- laisse les n.12 et 13 verts. Ce controle ferme ce trou-la.
+       -- (i)   anon garde SELECT sur la vue -> true (sans lui, la file
+       --       publique est vide) ;
+       -- (ii)  droits de TABLE d ecriture sur la vue -> 0 ;
+       -- (iii) droits de COLONNE d ecriture sur la vue -> 0.
+       has_table_privilege('anon'::name, 'public.demandes_publiques', 'SELECT')::text
+       || ' / ' ||
+       (select count(*)::text
+          from (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'),
+                       ('REFERENCES'), ('TRIGGER')) as p(privilege)
+         where has_table_privilege('anon'::name, 'public.demandes_publiques',
+                                   p.privilege))
+       || ' / ' ||
+       (select count(*)::text
+          from information_schema.columns c
+         cross join (values ('INSERT'), ('UPDATE'), ('REFERENCES')) as p(privilege)
+         where c.table_schema = 'public' and c.table_name = 'demandes_publiques'
+           and has_column_privilege('anon'::name, 'public.demandes_publiques',
+                                    c.column_name::text, p.privilege)),
+       'true / 0 / 0'
+
+union all
+select 23,
+       'authenticated : UPDATE sur statut ET page_pilote, et sur rien d autre',
+       -- attendu : 2 | page_pilote, statut (BKL-CIN-098 lot S,
+       -- 19/09/2026 -- controle NEUF).
+       -- CE QU IL AJOUTE AU N.14 : les NOMS. Le n.14 compte des paires
+       -- et rend deux nombres ; celui-ci NOMME les colonnes que la page
+       -- privee peut ecrire. Un rouge y dit TOUT DE SUITE laquelle est
+       -- de trop, ou laquelle manque -- au lieu d un "7 / 1" a instruire.
+       -- DEUX, ET PAS TROIS : la page pose l etape et l adresse dans un
+       -- meme 'PATCH'. Elle ne touche ni le titre, ni le motif, ni le
+       -- mail, ni le decideur, ni slug_existant. Une colonne de plus
+       -- ici, et la borne "la page ne change QUE l etape et l adresse"
+       -- tombe -- sans qu aucun autre controle ne le dise.
+       (select count(*)::text
+          from information_schema.columns c
+         where c.table_schema = 'public' and c.table_name = 'demandes'
+           and has_column_privilege('authenticated'::name, 'public.demandes',
+                                    c.column_name::text, 'UPDATE'))
+       || ' | ' ||
+       coalesce((select string_agg(c.column_name::text, ', ' order by c.column_name)
+                   from information_schema.columns c
+                  where c.table_schema = 'public' and c.table_name = 'demandes'
+                    and has_column_privilege('authenticated'::name, 'public.demandes',
+                                             c.column_name::text, 'UPDATE')), '(aucune)'),
+       '2 | page_pilote, statut'
+
+union all
+select 24,
+       'demandes_journal FIGE : les DEUX declencheurs',
+       -- attendu : 2 | demandes_journal_fige_instruction_trg,
+       --               demandes_journal_fige_ligne_trg
+       -- (BKL-CIN-098 lot S, 19/09/2026 -- controle NEUF.)
+       -- POURQUOI. Le 19/09, AH a modifie une ligne de ce journal par
+       -- erreur au tableau de bord, et rien n en a garde trace. Un
+       -- journal qu on peut reecrire sans laisser de trace n est pas un
+       -- journal -- et le critere E2 du bilan de promotion du pilote
+       -- repose sur lui.
+       -- DEUX ET NON UN : PostgreSQL exige qu un declencheur 'truncate'
+       -- soit de niveau INSTRUCTION (il n y a pas de ligne a lui
+       -- montrer) ; 'update' et 'delete' sont de niveau LIGNE.
+       -- CE QUE CETTE PARADE N EST PAS : une protection contre le
+       -- PROPRIETAIRE. Un 'alter table ... disable trigger' la leve. Ce
+       -- qui change, c est qu effacer une trace devient un geste
+       -- DELIBERE et NOMME, au lieu d un clic.
+       -- L INSERT N EST PAS GENE : c est ce que prouve l epreuve P-5, et
+       -- c est la moitie qui compte -- une garde qui refuserait AUSSI
+       -- l insert tuerait la journalisation en silence.
+       (select count(*)::text from pg_trigger
+         where tgrelid = 'public.demandes_journal'::regclass and not tgisinternal)
+       || ' | ' ||
+       coalesce((select string_agg(tgname, ', ' order by tgname) from pg_trigger
+                  where tgrelid = 'public.demandes_journal'::regclass
+                    and not tgisinternal), '(aucun)'),
+       '2 | demandes_journal_fige_instruction_trg, demandes_journal_fige_ligne_trg'
 
 order by ordre;
 
@@ -666,4 +863,399 @@ order by ordre;
 --
 -- SI LES ONZE PASSENT dans l'un ou l'autre cas : le plafond est inerte
 -- pour cette forme-la. ARRET, et on le signale -- on ne "reessaie" pas.
+-- ---------------------------------------------------------------------
+
+-- =====================================================================
+-- P-3, P-4, P-5 -- LES EPREUVES DU LOT S. BKL-CIN-098, 19/09/2026.
+-- A jouer SEPAREMENT par AH, UN BLOC A LA FOIS : selectionner le bloc
+-- decommente, puis Run.
+-- =====================================================================
+--
+-- POURQUOI TROIS EPREUVES DE PLUS. Les controles n.19 a 24 sont des
+-- controles d'EXISTENCE : ils lisent le catalogue. Une contrainte
+-- presente mais a l'expression fautive, un declencheur pose mais
+-- desactive, une borne qui n'interdit rien -- tout cela les laisse
+-- VERTS. C'est exactement ce qui s'est produit le 18/09 avec le plafond
+-- inerte : dix-neuf lignes vertes, et rien ne refusait quoi que ce soit.
+-- UNE GARDE SE PROUVE DES DEUX COTES : ce qu'elle laisse passer, ET ce
+-- qu'elle refuse.
+--
+-- CE QUI REND CES BLOCS SANS DANGER : chacun vit dans une transaction
+-- terminee par 'rollback'. Les lignes creees, leurs lignes de journal et
+-- les tables temporaires disparaissent toutes. Seule la SEQUENCE des
+-- identifiants avance -- c'est normal et sans consequence. Chaque bloc
+-- se termine par un compte de restes, a jouer APRES le rollback :
+-- attendu 0.
+--
+-- !!! ET CE N'EST PLUS UN POSTULAT. Que l'editeur SQL de Supabase honore
+-- !!! bien un 'begin; ... rollback;' couvrant PLUSIEURS instructions
+-- !!! d'un meme envoi n'avait JAMAIS ete mesure -- ni au lot 2, ou P-1
+-- !!! et P-2 reposent pourtant entierement dessus. Mesure du 19/09/2026
+-- !!! 16h15 (BKL-CIN-098 lot S), par une sonde qui ne cree rien :
+-- !!!     begin;
+-- !!!     select set_config('zz.sonde_txid', txid_current()::text, true);
+-- !!!     select current_setting('zz.sonde_txid', true), txid_current();
+-- !!!     rollback;
+-- !!! -> meme valeur des deux cotes (1697 / 1697) : UNE SEULE
+-- !!! transaction. Le 'rollback' protege. La sonde se rejoue en dix
+-- !!! secondes le jour ou l'on en doute.
+--
+-- =====================================================================
+-- !!! LE DIALOGUE DE SUPABASE -- LIRE AVANT DE CLIQUER.
+-- =====================================================================
+-- Un bloc qui porte 'create temporary table' fait afficher a l'editeur
+-- "Potential issues detected ... This query creates a table without
+-- enabling Row Level Security", avec trois boutons.
+--
+--   * "Run without RLS"      <- C'EST CELUI-LA, TOUJOURS.
+--   * "Run and enable RLS"   <- JAMAIS. Supabase AJOUTE alors a ta
+--                               requete un 'alter table public.<nom>
+--                               enable row level security'. Il prefixe
+--                               'public.' -- or la table est
+--                               TEMPORAIRE, donc elle n'est pas dans
+--                               public. L'instruction ajoutee echoue en
+--                               42P01 "relation ... does not exist", et
+--                               l'echec ressemble a un defaut du bloc.
+--                               C'est arrive le 19/09/2026 a 16h13, et
+--                               une demi-heure y est passee.
+--   * "Cancel"               <- si tu n'es pas sur.
+--
+-- L'AVERTISSEMENT EST SANS OBJET ICI : une table TEMPORAIRE vit dans le
+-- schema temporaire de TA session, aucun autre role ne peut l'atteindre,
+-- et elle meurt avec la connexion. Le linter voit 'create table' et ne
+-- distingue pas.
+--
+-- LA REGLE GENERALE, qui vaut au-dela de ce cas : ON NE LAISSE JAMAIS
+-- L'EDITEUR REECRIRE UNE EPREUVE. Une mesure dont le texte a ete modifie
+-- par l'outil ne mesure plus ce qu'elle annonce.
+-- =====================================================================
+--
+-- POURQUOI UN BLOC 'do' ET UNE TABLE TEMPORAIRE, plutot qu'une suite de
+-- commandes : une erreur de contrainte AVORTE la transaction, et tout ce
+-- qui suivrait echouerait pour CETTE raison-la, et non pour la bonne
+-- (c'est la lecon de P-2, qui doit se jouer en deux fois). Un bloc
+-- 'begin ... exception' ouvre une SOUS-transaction : l'erreur attendue y
+-- est rattrapee, consignee, et la suite continue. Les resultats
+-- s'accumulent dans une table temporaire, et UN SEUL tableau les rend.
+--
+-- L'EDITEUR SQL JOUE EN TANT QUE 'postgres' : auth.uid() y est NUL, le
+-- plafond de creation sort par sa garde (fail-open), et les policies ne
+-- s'appliquent pas au proprietaire. Ces epreuves mesurent donc les
+-- CONTRAINTES et les DECLENCHEURS, pas les policies -- celles-ci sont
+-- mesurees par les controles n.1, 12 a 14, 17, 22, 23 et par la
+-- contre-lecture hostile (outils/controler-page-privee.mjs).
+--
+-- ---------------------------------------------------------------------
+-- P-3 (a) -- L'EXPRESSION DE FORME, LUE. Bloc de LECTURE PURE : aucune
+-- transaction, rien n'est ecrit. Il eprouve l'EXPRESSION elle-meme, sur
+-- douze cas dont dix hostiles.
+-- ---------------------------------------------------------------------
+-- ATTENDU : douze lignes, colonne 'jugement' a 'OK' partout.
+--
+-- LE CAS QUI COMPTE LE PLUS EST LE DERNIER : une adresse VALIDE SUIVIE
+-- D'UN SAUT DE LIGNE. En Python, '$' tolere un saut de ligne terminal et
+-- ce cas PASSE ; le greffe l'a mesure le 19/09/2026 en eprouvant
+-- l'expression sur 49 slugs reels (0 hors forme) et 10 cas hostiles.
+-- PostgreSQL, hors mode "newline-sensitive", fait apparier '$' a la FIN
+-- DE CHAINE seulement : il devrait donc REFUSER. C'est ce que cette
+-- ligne mesure -- on ne le suppose pas. JavaScript est mesure a part,
+-- par la passe D de outils/controler-proprete.mjs.
+--
+-- select cas,
+--        case when valeur ~ '^https://pilote\.cdatso\.be/films/[a-z0-9]+(-[a-z0-9]+)*\.html$'
+--             then 'ACCEPTEE' else 'REFUSEE' end as verdict,
+--        attendu,
+--        case when (case when valeur ~ '^https://pilote\.cdatso\.be/films/[a-z0-9]+(-[a-z0-9]+)*\.html$'
+--                        then 'ACCEPTEE' else 'REFUSEE' end) = attendu
+--             then 'OK' else '>>> ECART <<<' end as jugement,
+--        length(valeur) as longueur
+--   from (values
+--     ('01 adresse valide, slug compose', 'https://pilote.cdatso.be/films/le-chateau-ambulant.html', 'ACCEPTEE'),
+--     ('02 adresse valide, slug simple',  'https://pilote.cdatso.be/films/rose.html',                'ACCEPTEE'),
+--     ('03 autre domaine',                'https://www.cdatso.be/films/le-chateau-ambulant.html',    'REFUSEE'),
+--     ('04 domaine-leurre en suffixe',    'https://pilote.cdatso.be.evil.be/films/rose.html',        'REFUSEE'),
+--     ('05 domaine-leurre en prefixe',    'https://evil.be/pilote.cdatso.be/films/rose.html',        'REFUSEE'),
+--     ('06 http en clair',                'http://pilote.cdatso.be/films/rose.html',                 'REFUSEE'),
+--     ('07 chemin hors films/',           'https://pilote.cdatso.be/docs/journal-pilote.html',       'REFUSEE'),
+--     ('08 remontee de chemin',           'https://pilote.cdatso.be/films/../docs/secret.html',      'REFUSEE'),
+--     ('09 chaine de requete',            'https://pilote.cdatso.be/films/rose.html?x=1',            'REFUSEE'),
+--     ('10 majuscules dans le slug',      'https://pilote.cdatso.be/films/Le-Chateau.html',          'REFUSEE'),
+--     ('11 schema javascript',            'javascript:alert(1)',                                     'REFUSEE'),
+--     ('12 valide + SAUT DE LIGNE final', 'https://pilote.cdatso.be/films/rose.html' || chr(10),      'REFUSEE')
+--   ) as t(cas, valeur, attendu)
+--  order by cas;
+--
+-- ---------------------------------------------------------------------
+-- P-3 (b) -- LA CONTRAINTE DE FORME MORD. Transaction, puis rollback.
+-- ---------------------------------------------------------------------
+-- (a) prouve que l'EXPRESSION juge bien. (b) prouve qu'elle est
+-- effectivement ATTACHEE a la colonne et qu'elle REFUSE -- une
+-- contrainte declaree 'not valid', ou absente, laisserait (a) vert et
+-- (b) rouge.
+--
+-- ATTENDU : douze lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, le compte de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p3_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p3$
+-- declare
+--     v_id bigint;
+--     r    record;
+-- begin
+--     -- Une ligne d'appui, en 'traitee' : la borne de COHERENCE admet
+--     -- une adresse a cette etape, ce qui isole la borne de FORME.
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-3 forme -- A ROLLBACK', 'traitee', 'AH')
+--     returning id into v_id;
+--
+--     for r in
+--         select * from (values
+--           ('01 adresse valide, slug compose', 'https://pilote.cdatso.be/films/le-chateau-ambulant.html', 'ACCEPTEE'),
+--           ('02 adresse valide, slug simple',  'https://pilote.cdatso.be/films/rose.html',                'ACCEPTEE'),
+--           ('03 autre domaine',                'https://www.cdatso.be/films/le-chateau-ambulant.html',    'REFUSEE'),
+--           ('04 domaine-leurre en suffixe',    'https://pilote.cdatso.be.evil.be/films/rose.html',        'REFUSEE'),
+--           ('05 domaine-leurre en prefixe',    'https://evil.be/pilote.cdatso.be/films/rose.html',        'REFUSEE'),
+--           ('06 http en clair',                'http://pilote.cdatso.be/films/rose.html',                 'REFUSEE'),
+--           ('07 chemin hors films/',           'https://pilote.cdatso.be/docs/journal-pilote.html',       'REFUSEE'),
+--           ('08 remontee de chemin',           'https://pilote.cdatso.be/films/../docs/secret.html',      'REFUSEE'),
+--           ('09 chaine de requete',            'https://pilote.cdatso.be/films/rose.html?x=1',            'REFUSEE'),
+--           ('10 majuscules dans le slug',      'https://pilote.cdatso.be/films/Le-Chateau.html',          'REFUSEE'),
+--           ('11 schema javascript',            'javascript:alert(1)',                                     'REFUSEE'),
+--           ('12 valide + SAUT DE LIGNE final', 'https://pilote.cdatso.be/films/rose.html' || chr(10),      'REFUSEE')
+--         ) as t(cas, valeur, attendu)
+--     loop
+--         begin
+--             update public.demandes set page_pilote = r.valeur where id = v_id;
+--             insert into p3_resultats values (r.cas, 'ACCEPTEE', r.attendu);
+--         exception when check_violation then
+--             insert into p3_resultats values (r.cas, 'REFUSEE', r.attendu);
+--         end;
+--     end loop;
+-- end
+-- $p3$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p3_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0.
+--
+-- select count(*) as restes
+--   from public.demandes
+--  where titre like 'P-3 %A ROLLBACK%';
+--
+-- ---------------------------------------------------------------------
+-- P-4 -- LA BORNE DE COHERENCE MORD, DES DEUX COTES.
+-- ---------------------------------------------------------------------
+-- Elle dit deux choses, et il faut prouver les deux dans les deux sens :
+--   publiee_pilote  => adresse NON NULLE ;
+--   adresse non nulle => publiee_pilote ou traitee.
+-- Six cas : trois qui doivent PASSER, trois qui doivent etre REFUSES. Un
+-- controle qui n'eprouverait que les refus ne dirait pas si la borne
+-- laisse encore travailler la page privee.
+--
+-- ATTENDU : six lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, le compte de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p4_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p4$
+-- declare
+--     v_id  bigint;
+--     v_url text := 'https://pilote.cdatso.be/films/le-chateau-ambulant.html';
+-- begin
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-4 coherence -- A ROLLBACK', 'a_traiter', 'AH')
+--     returning id into v_id;
+--
+--     -- (1) DOIT PASSER : publiee_pilote AVEC son adresse, pose dans le
+--     --     meme geste -- c'est exactement le 'PATCH' a deux champs de
+--     --     la page privee.
+--     begin
+--         update public.demandes
+--            set statut = 'publiee_pilote', page_pilote = v_url
+--          where id = v_id;
+--         insert into p4_resultats values ('1 publiee_pilote AVEC adresse', 'ACCEPTE', 'ACCEPTE');
+--     exception when check_violation then
+--         insert into p4_resultats values ('1 publiee_pilote AVEC adresse', 'REFUSE', 'ACCEPTE');
+--     end;
+--
+--     -- (2) DOIT PASSER : adoption -- vers traitee, l'adresse RESTE.
+--     --     Une page adoptee garde la memoire de son adresse d'essai.
+--     begin
+--         update public.demandes set statut = 'traitee' where id = v_id;
+--         insert into p4_resultats values ('2 vers traitee, adresse gardee', 'ACCEPTE', 'ACCEPTE');
+--     exception when check_violation then
+--         insert into p4_resultats values ('2 vers traitee, adresse gardee', 'REFUSE', 'ACCEPTE');
+--     end;
+--
+--     -- (3) DOIT PASSER : retour a publiee_pilote, adresse toujours la.
+--     begin
+--         update public.demandes set statut = 'publiee_pilote' where id = v_id;
+--         insert into p4_resultats values ('3 retour a publiee_pilote', 'ACCEPTE', 'ACCEPTE');
+--     exception when check_violation then
+--         insert into p4_resultats values ('3 retour a publiee_pilote', 'REFUSE', 'ACCEPTE');
+--     end;
+--
+--     -- (4) DOIT ETRE REFUSE : quitter publiee_pilote vers mise_de_cote
+--     --     SANS remettre l'adresse a NUL. C'est l'erreur que la page
+--     --     privee evite en posant 'page_pilote: null' dans le MEME
+--     --     PATCH -- et que la base doit refuser si la page l'oubliait.
+--     begin
+--         update public.demandes set statut = 'mise_de_cote' where id = v_id;
+--         insert into p4_resultats values ('4 quitter SANS vider l adresse', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p4_resultats values ('4 quitter SANS vider l adresse', 'REFUSE', 'REFUSE');
+--     end;
+--
+--     -- (5) DOIT ETRE REFUSE : publiee_pilote SANS adresse. Une carte de
+--     --     la rubrique "Publiees a l'essai" sans lien promettrait ce
+--     --     qu'elle ne peut pas tenir.
+--     begin
+--         update public.demandes
+--            set statut = 'publiee_pilote', page_pilote = null
+--          where id = v_id;
+--         insert into p4_resultats values ('5 publiee_pilote SANS adresse', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p4_resultats values ('5 publiee_pilote SANS adresse', 'REFUSE', 'REFUSE');
+--     end;
+--
+--     -- (6) DOIT ETRE REFUSE : une adresse sur une demande 'a_traiter'.
+--     --     Seules publiee_pilote et traitee en portent une.
+--     begin
+--         update public.demandes
+--            set statut = 'a_traiter', page_pilote = v_url
+--          where id = v_id;
+--         insert into p4_resultats values ('6 adresse sur a_traiter', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p4_resultats values ('6 adresse sur a_traiter', 'REFUSE', 'REFUSE');
+--     end;
+-- end
+-- $p4$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p4_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0.
+--
+-- select count(*) as restes
+--   from public.demandes
+--  where titre like 'P-4 %A ROLLBACK%';
+--
+-- ---------------------------------------------------------------------
+-- P-5 -- LE JOURNAL EST FIGE, MAIS IL ECRIT ENCORE.
+-- ---------------------------------------------------------------------
+-- LES DEUX COTES, et le premier est le plus important : une garde qui
+-- refuserait AUSSI l'insert tuerait la journalisation EN SILENCE, et
+-- tous les controles resteraient verts sur un journal muet.
+--   (1) une creation et un changement d'etape ECRIVENT bien deux lignes ;
+--   (2) 'update' sur une ligne du journal est REFUSE ;
+--   (3) 'delete' sur une ligne du journal est REFUSE ;
+--   (4) 'truncate' de la table est REFUSE.
+--
+-- LE CAS (4) EST DANS LE BLOC 'do' A DESSEIN : il n'existe AUCUNE ligne
+-- 'truncate' isolee dans ce fichier qu'un humain pourrait selectionner
+-- et jouer seule. TRUNCATE est transactionnel dans PostgreSQL -- le
+-- rollback le defait -- mais on ne laisse pas trainer l'occasion.
+--
+-- ATTENDU : cinq lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, DEUX comptes de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p5_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p5$
+-- declare
+--     v_id     bigint;
+--     v_jid    bigint;
+--     v_avant  integer;
+--     v_apres  integer;
+-- begin
+--     select count(*) into v_avant from public.demandes_journal;
+--
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-5 journal -- A ROLLBACK', 'proposee', 'AH')
+--     returning id into v_id;
+--
+--     update public.demandes set statut = 'a_traiter' where id = v_id;
+--
+--     select count(*) into v_apres from public.demandes_journal;
+--
+--     -- (1) L'INSERT PASSE : une ligne 'creation' et une ligne 'etape'.
+--     insert into p5_resultats
+--     values ('1 lignes de journal ecrites', (v_apres - v_avant)::text, '2');
+--
+--     select id into v_jid
+--       from public.demandes_journal
+--      where demande_id = v_id
+--      order by id
+--      limit 1;
+--
+--     -- (2) UPDATE : refuse.
+--     begin
+--         update public.demandes_journal set apres = 'falsifie' where id = v_jid;
+--         insert into p5_resultats values ('2 update d une ligne', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p5_resultats values ('2 update d une ligne', 'REFUSE', 'REFUSE');
+--     end;
+--
+--     -- (3) DELETE : refuse.
+--     begin
+--         delete from public.demandes_journal where id = v_jid;
+--         insert into p5_resultats values ('3 delete d une ligne', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p5_resultats values ('3 delete d une ligne', 'REFUSE', 'REFUSE');
+--     end;
+--
+--     -- (4) TRUNCATE : refuse.
+--     begin
+--         truncate table public.demandes_journal;
+--         insert into p5_resultats values ('4 truncate de la table', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p5_resultats values ('4 truncate de la table', 'REFUSE', 'REFUSE');
+--     end;
+--
+--     -- (5) RIEN N'A DISPARU : le compte est celui d'avant les trois
+--     --     tentatives. Si le truncate etait passe, ce nombre serait 0.
+--     insert into p5_resultats
+--     values ('5 lignes de journal encore la',
+--             (select count(*) from public.demandes_journal)::text,
+--             (v_apres)::text);
+-- end
+-- $p5$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p5_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0 et 0.
+--
+-- select (select count(*) from public.demandes
+--          where titre like 'P-5 %A ROLLBACK%') as demandes_restantes,
+--        (select count(*) from public.demandes_journal j
+--           join public.demandes d on d.id = j.demande_id
+--          where d.titre like 'P-5 %A ROLLBACK%')  as journal_restant;
+--
+-- SI UNE SEULE LIGNE DE P-3, P-4 OU P-5 REND '>>> ECART <<<' : la borne
+-- correspondante ne fait pas ce qu'elle annonce. ARRET, et on le signale
+-- -- on ne "reessaie" pas, et on ne passe pas a la suite.
 -- ---------------------------------------------------------------------

@@ -100,6 +100,44 @@
 -- l. 790 ecrit decideur='AH' pour TOUTE demande publique, et c'est aussi
 -- le DEFAUT de la colonne (01-table-demandes.sql l. 90).
 --
+-- =====================================================================
+-- !!! ERRATUM DATE DU 19/09/2026 (BKL-CIN-098 lot S) -- LES TROIS
+-- !!! LIGNES CI-DESSUS SUR 'par NUL' SONT FAUSSES PAR OMISSION.
+-- Rien n'est reecrit au-dessus (charte regle 5) : cette note dit ce qui
+-- a cesse d'etre vrai, et ce qui l'est.
+--
+-- CE QUI EST VRAI :
+--   par NON NUL = ecriture faite par un compte AUTHENTIFIE, donc par la
+--                 PAGE PRIVEE. Cela, la ligne du dessus le dit bien.
+--   par NUL     = ecriture faite SANS compte authentifie. C'est TOUT ce
+--                 que cela veut dire. Deux chemins, et non un :
+--                   (i)  la clef SECRETE (role service_role) --
+--                        qualifier.mjs, donc le formulaire public ;
+--                   (ii) le TABLEAU DE BORD Supabase (Table Editor, SQL
+--                        Editor), qui passe par une voie privilegiee, en
+--                        role proprietaire : auth.uid() y est NUL.
+--
+-- CE QUE L'OMISSION COUTAIT. Lire 'par NUL' comme "formulaire public"
+-- attribue a un visiteur un geste qu'AH a fait lui-meme au tableau de
+-- bord. C'est arrive : le 19/09/2026, la demande n.2 a ete passee en
+-- 'traitee' depuis le tableau de bord, et la ligne de journal ainsi
+-- ecrite se serait lue "venue du formulaire". Le critere E2 du bilan de
+-- promotion du pilote s'appuie sur ce journal : une provenance mal lue
+-- y devient un chiffre faux.
+--
+-- COMMENT DISTINGUER (i) DE (ii) : le journal seul NE LE PERMET PAS. Il
+-- n'existe aucune colonne qui les separe, et ce script n'en ajoute pas.
+-- Ce qui les separe, ce sont les AUTRES colonnes de public.demandes --
+-- une creation par qualifier.mjs porte une 'qualification' JSON et un
+-- 'motif' ; un geste du tableau de bord, en general, ni l'un ni
+-- l'autre. C'est un indice, PAS une preuve : l'ecrire ainsi, et ne pas
+-- conclure au-dela.
+--
+-- LE BLOC R-1 de 06-statut-publiee-pilote.sql tombe dans le cas (ii) et
+-- le declare : la ligne 'traitee' -> 'publiee_pilote' de la demande n.2
+-- portera 'par' A NUL, et c'est ATTENDU.
+-- =====================================================================
+--
 -- Fichier destine a une MACHINE (colle dans l'editeur SQL de Supabase) :
 -- UTF-8 SANS BOM, ASCII pur, comme ses voisins.
 

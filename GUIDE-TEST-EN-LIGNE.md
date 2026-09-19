@@ -190,6 +190,26 @@ page, demande un lien magique, révise **une** demande, et vérifie au
 *Table Editor* que `demandes_journal` porte sa ligne (qui, quand, avant,
 après).
 
+> ### Lire la colonne `par` du journal — corrigé le 19/09/2026
+>
+> | `par` | Ce que cela veut dire |
+> |---|---|
+> | **non nul** | écriture par un compte **authentifié** — donc la **page privée** |
+> | **nul** | écriture **sans compte authentifié**. **Deux** chemins, pas un : ① la clé **secrète** (`qualifier.mjs`, donc le **formulaire public**) ; ② le **tableau de bord Supabase** (*Table Editor*, *SQL Editor*), qui passe en rôle propriétaire — `auth.uid()` y est nul |
+>
+> ⚠️ **Jusqu'au 19/09/2026, `05-page-privee-w2.sql` et ce guide disaient
+> que `par` nul signifiait « le formulaire public ».** C'était **faux par
+> omission**, et le coût est réel : un geste que **tu** fais au tableau de
+> bord se lisait comme la demande d'un visiteur. C'est arrivé le 19/09 sur
+> la demande n°2. Le critère **E2** du bilan de promotion du pilote
+> s'appuie sur ce journal — une provenance mal lue y devient un chiffre
+> faux.
+>
+> **Le journal seul ne sépare pas ① de ②.** Aucune colonne ne le fait, et
+> aucun script n'en ajoute. L'**indice** — pas la preuve — est ailleurs :
+> une création par `qualifier.mjs` porte une `qualification` JSON et un
+> `motif` ; un geste du tableau de bord, en général, ni l'un ni l'autre.
+
 > Le courrier intégré de Supabase est **plafonné à quelques envois par
 > heure** : ne redemande pas un lien en rafale. La session vit dans
 > l'onglet et meurt avec lui.
