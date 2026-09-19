@@ -1,11 +1,14 @@
 ﻿# Test en ligne — « Demander une analyse » (fiche A)
 
-**Tes seize gestes, tels qu'exécutés.** Le service tourne en production
-depuis le 25/08/2026 (08h19) sous **https://demande.cdatso.be**. Ce guide
-reste la référence de ces gestes — utile pour un redéploiement à neuf ou
-un audit, pas pour une mise en ligne restant à faire.
+**Tes vingt-et-un gestes, tels qu'exécutés.** Le service tourne en
+production depuis le 25/08/2026 (08h19) sous
+**https://demande.cdatso.be**. Ce guide reste la référence de ces gestes —
+utile pour un redéploiement à neuf ou un audit, pas pour une mise en ligne
+restant à faire.
 *Gestes ① à ⑫ : le service public. Gestes ⑬ à ⑯ : la page privée
-d'administration, ajoutée le 18/09/2026 (BKL-CIN-096 lot 2).*
+d'administration, ajoutée le 18/09/2026 (BKL-CIN-096 lot 2). Gestes ⑰ à
+㉑ : la huitième étape `publiee_pilote` et l'adresse de la page d'essai,
+ajoutées le 19/09/2026 (BKL-CIN-098 lot S et lot S bis).*
 
 **La borne, avant tout** : la clé de l'API Claude et la clé **secrète**
 Supabase ne sortent **jamais** des variables d'environnement. Seule la clé
@@ -66,10 +69,21 @@ peur`, `Henri-Georges Clouzot`, `1953`. **Attendu** : accusé
 s'est arrêté.
 
 **⑩ Les contrôles.** *SQL Editor* → `supabase/02-controles-demandes.sql`
-→ *Run*. Un seul tableau, **dix-neuf** lignes (douze jusqu'au 16/09/2026 ; treize au lot 0, contrôle n°12 ; dix-neuf au lot 2 du 18/09/2026, n°1 et n°12 amendés et n°13 à 18 neufs), colonnes *mesure* et *attendu* :
+→ *Run*. Un seul tableau, **vingt-cinq** lignes (douze jusqu'au 16/09/2026 ; treize au lot 0, contrôle n°12 ; dix-neuf au lot 2 du 18/09/2026, n°1 et n°12 amendés et n°13 à 18 neufs ; **vingt-cinq au lot S de BKL-CIN-098, le 19/09/2026** — n°4, 7, 12 et 14 amendés, n°19 à 24 neufs), colonnes *mesure* et *attendu* :
 la table est certifiée quand chaque mesure satisfait son attendu. Le
 contrôle 5 doit montrer **une** demande, pas deux — les Tontons ne
 s'insèrent pas.
+
+> **Deux lignes ne se jugent plus, elles se lisent** (décision d'AH du
+> 19/09/2026) : le **n°6** « demandes du jour » et le **n°9** « lignes
+> posées par l'IA hors proposée » portent désormais un attendu qui
+> commence par **`informatif`**. Ils valaient **le jour du test** de la
+> fiche A ; sur une base vivante, ils rougissaient par construction —
+> un contrôle dont l'attendu a vieilli cesse d'être un détecteur. Leur
+> **mesure reste affichée**. La borne du n°9 (« l'IA ne pose jamais un
+> statut ») est tenue ailleurs, et mieux : par **structure**, dans
+> `outils/controler-durcissement.mjs`. **Attendu du rendu : 25 lignes,
+> 23 conformes + ces 2 informatives.**
 
 **⑪ Le contrôle de confidentialité** — c'est la mesure que la session
 préparatoire n'a **pas pu** faire. Avec la clé **publiable** :
@@ -149,7 +163,8 @@ paramètre d'UUID (`Ctrl+H`, *Replace all*) → *Run*.
 
 Attendu : quatre lignes — policies `3`, déclencheurs `3`,
 `demandes_journal` `1 / true / 0`, UUID distincts `1`. Puis
-`supabase/02-controles-demandes.sql` : **dix-neuf** lignes.
+`supabase/02-controles-demandes.sql` : **vingt-cinq** lignes depuis le
+19/09/2026 (dix-neuf à la date du geste ⑭).
 
 **⑮ Les DEUX épreuves du plafond — et il faut les deux.** Blocs optionnels
 en bas de `02-controles-demandes.sql`, à jouer **séparément** :
@@ -217,6 +232,108 @@ après).
 > ⚠️ **Ne fais jamais ouvrir cette page par un agent qui pilote ton
 > navigateur réel** : il agirait dans ta session ouverte et pourrait poser
 > une étape « comme toi » (R-026).
+
+---
+
+## La huitième étape et l'adresse de la page d'essai (BKL-CIN-098, 19/09/2026)
+
+*Gestes ⑰ à ㉑. **Chaque geste est nommé par son FICHIER ou par son
+BOUTON, jamais par un numéro nu** — le 19/09, des gestes numérotés « 1, 2,
+3 » à côté de fichiers `01, 02, 03` ont fait rejouer
+`03-droits-vue-publique.sql` par méprise : page privée hors service dix
+minutes.*
+
+> ### ⛔ Deux règles à lire avant de cliquer
+>
+> **① `supabase/03-droits-vue-publique.sql` NE SE REJOUE JAMAIS SEUL.**
+> Son `revoke all on public.demandes` emporte **aussi** les droits de
+> **colonne** accordés par `supabase/05-page-privee-w2.sql` (section 6) et
+> par `supabase/06-statut-publiee-pilote.sql` (section 6) — rien dans `03`
+> ne les re-accorde, et la page privée tombe. *Mesuré le 19/09 : les sept
+> paires perdues d'un coup (contrôle n°12 `0/0/7/false/true`, n°14 `0/0`,
+> n°23 `0 | (aucune)`) ; surface publique jamais affectée ; aucune donnée
+> touchée.* **Réparation** : rejouer les `grant` de `05` §6 et de `06` §6
+> — **pas** `03`. L'avertissement daté est en fin de `03`.
+>
+> **② Ne laisse JAMAIS l'éditeur Supabase réécrire une épreuve.** Un bloc
+> qui porte `create temporary table` fait afficher « *Potential issues
+> detected* » et trois boutons. Clique **« Run without RLS »**, toujours.
+> **« Run and enable RLS »** fait *ajouter* par Supabase un
+> `alter table public.<nom> enable row level security` — préfixé
+> `public.` alors que la table est **temporaire** : l'instruction ajoutée
+> échoue en `42P01` et l'échec **ressemble à un défaut du bloc**. Une
+> demi-heure y est passée le 19/09.
+
+**⑰ `supabase/06-statut-publiee-pilote.sql` — déjà joué le 19/09/2026.**
+Il a posé la huitième étape `publiee_pilote`, la colonne `page_pilote` et
+ses deux bornes (forme et cohérence), la vue publique à **onze** colonnes,
+le droit d'écrire l'adresse depuis la page privée, et il a **figé**
+`demandes_journal` contre `update`, `delete` et `truncate`. **L'ordre des
+gestes est écrit en tête du fichier, et il compte : les PAGES d'abord.**
+Une demande à une étape que les pages servies ne connaissent pas ferait
+afficher à la file publique « *Attention : N demande(s) portent une étape
+inconnue* ».
+
+**⑱ `supabase/02-controles-demandes.sql`** — tout sélectionner,
+*Run without RLS* si l'éditeur le propose. **Attendu : 25 lignes**, chaque
+`mesure` satisfaisant son `attendu`, **sauf** les n°6 et n°9 dont
+l'attendu commence par `informatif` (voir le geste ⑩).
+
+**⑲ Les trois épreuves du lot S**, blocs `P-3`, `P-4`, `P-5` en bas de
+`supabase/02-controles-demandes.sql`, **un bloc à la fois** (sélectionner
+le bloc décommenté, puis *Run without RLS*) :
+
+| | Ce qu'elle prouve |
+|---|---|
+| **P-3 (a)** | l'**expression de forme** juge bien : 12 cas, dont 10 hostiles — et le dernier, une adresse valide **suivie d'un saut de ligne**, doit être **REFUSÉE** |
+| **P-3 (b)** | la contrainte de forme est bien **attachée** à la colonne, et elle **refuse** |
+| **P-4** | la borne de **cohérence** mord **des deux côtés** : 3 cas qui passent, 3 qui sont refusés |
+| **P-5** | le journal est **figé** (`update`, `delete`, `truncate` refusés) **et il écrit encore** (l'`insert` passe — c'est la moitié qui compte) |
+
+Chaque bloc vit dans une transaction terminée par `rollback`, et se
+termine par un compte de restes : **attendu 0**. *(Que l'éditeur honore
+bien un `begin; … rollback;` couvrant plusieurs instructions a été
+**mesuré** le 19/09 : `1697 / 1697`, une seule transaction.)*
+
+**⑳ La section `R-1` de `supabase/06-statut-publiee-pilote.sql`** — en
+commentaire, **une seule fois**, et **après** que les pages portant
+`publiee_pilote` sont déployées. Elle remet la demande n°2, *Le Château
+ambulant*, de `traitee` à `publiee_pilote` et lui donne son adresse. Joue
+ses blocs **(a)**, **(b)**, **(c)** dans l'ordre où elle les écrit, et
+lis chaque sortie : `1 ligne / traitee / NUL`, puis `UPDATE 1`, puis
+`1 ligne / publiee_pilote / l'adresse` et une ligne de journal à `par`
+**nul** — ce qui est **attendu** (le tableau de bord n'est pas un compte
+authentifié). C'est **ce geste, et lui seul**, qui fait apparaître le
+premier lien sur la file publique.
+
+**㉑ Ton geste courant, depuis `admin.html` — poser l'étape et l'adresse.**
+Après chaque publication du pilote :
+
+1. sur la carte de la demande, choisis **« Publiées à l'essai (non
+   relues) »** puis **« Changer l'étape »** ;
+2. la confirmation demande l'**adresse de la page d'essai** : colle-la.
+   Forme admise, et **la page la vérifie avant d'envoyer** :
+   `https://pilote.cdatso.be/films/<nom-du-film>.html` — minuscules,
+   chiffres, tirets simples, `.html`, rien après. Hors forme, **rien ne
+   part** ; et si elle partait, la base refuserait ;
+3. **« Confirmer »**. Le message d'après-coup affiche l'adresse **telle
+   que la base la rend**, et le lien apparaît sur `file.html` dans la
+   rubrique « Publiées à l'essai (non relues) ».
+
+**Ce qui change d'étape ensuite** : vers **« Traitées »**, c'est
+l'**adoption** au site — l'adresse d'essai est **conservée**, la page
+d'essai n'est jamais retouchée. Vers **« À traiter »** ou **« Mises de
+côté »**, l'adresse est **remise à NUL dans le même geste** (la base
+l'exige) et le lien disparaît de la file. Depuis **« Essai de publication
+automatique »**, **« Traitées » n'est plus proposé** (décision d'AH du
+19/09) : le chemin passe par « Publiées à l'essai », où **tu** constates.
+
+> ⚠️ **L'interrupteur du pilote**
+> (`claude-config\pilote\INTERRUPTEUR-PILOTE.txt`) et l'étape « Essai de
+> publication automatique » vont ensemble : une demande à cette étape est
+> **publiable** par la chaîne si l'interrupteur vaut `ACTIF`. Pour une
+> demande d'essai que tu ne veux **pas** voir publiée, vérifie
+> l'interrupteur **avant**.
 
 ---
 ---

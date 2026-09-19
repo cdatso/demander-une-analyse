@@ -63,6 +63,21 @@ file.html  --GET-->  vue public.demandes_publiques (clé publiable, lecture seul
 - **Le champ « adresse électronique » est stocké et inutilisé.** Aucun
   message n'est envoyé à personne. La vue publique ne l'expose pas — pas
   plus que le motif.
+- **Depuis le 19/09/2026, la file publique porte un lien vers du contenu
+  NON RELU — et c'est AH qui décide quand.** La huitième étape
+  `publiee_pilote` et la colonne `page_pilote` (script
+  `supabase/06-statut-publiee-pilote.sql`, BKL-CIN-098 lot S) ouvrent la
+  rubrique « Publiées à l'essai (non relues) », dont chaque carte renvoie
+  à une page de `pilote.cdatso.be`. Trois bornes, et il faut les trois :
+  l'adresse est **posée par AH seul** depuis la page privée — la chaîne
+  pilote n'a qu'une clé de lecture et **n'écrit jamais en base** ; elle
+  est **bornée en base** en forme (une page de films de la surface
+  d'essai, rien d'autre) et en cohérence (l'étape et l'adresse ne se
+  contredisent jamais) ; et `file.html` **rejoue la même expression**
+  avant de créer le lien, parce qu'un lien affiché sur une page publique
+  ne doit jamais pouvoir être arbitraire. Le risque assumé est nommé au
+  **RISKLOG R-030** ; l'arbitrage A6 (« surface pilote non liée ») est
+  **amendé** par la décision d'AH du 19/09.
 
 ### Ce qui n'est PAS dans le périmètre, et qui est déclaré
 
@@ -85,6 +100,20 @@ miel**.
 Hors périmètre également : toute page d'administration, et le lien depuis
 le site de production vers ce service.
 
+> **Erratum daté du 19/09/2026.** Les deux phrases ci-dessus valaient au
+> 25/08/2026 et ne sont plus vraies de la première : la **page privée
+> d'administration** `admin.html` existe depuis le 18/09/2026
+> (BKL-CIN-096 lot 2, policies nominatives, journal en base), et elle a
+> reçu le 19/09 la pose de l'étape `publiee_pilote` avec son adresse. La
+> seconde tient toujours : **le lien depuis le site de production** vers
+> ce service, ou vers la surface d'essai, reste **hors de ce dépôt** —
+> c'est le chantier « porte » de BKL-CIN-098, non exécuté à ce jour.
+> De même, « les deux emplacements de `file.html` sont livrés vides » vaut
+> pour la livraison d'origine : depuis le 25/08 ils portent l'adresse du
+> projet et la clé **publiable**, ce qui est correct (une clé publiable
+> est publique par construction) et ce que le contrôle de propreté vérifie
+> désormais — préfixe `sb_publishable_` exigé, tout autre préfixe rouge.
+
 ## Fraîcheur du registre
 
 Le registre est **fetché sur le site public à chaque requête** — pas de
@@ -106,11 +135,25 @@ pas admissible ici : il faut le reporter dans ce fichier.
 ```
 node outils/run-bouchonne.mjs            # rejoue la chaîne, aucun réseau
 node outils/controler-durcissement.mjs   # injection, schéma, bornes du code
-node outils/controler-proprete.mjs       # zéro secret, emplacements vides
+node outils/controler-proprete.mjs       # zéro secret, emplacements, passe D
 ```
 
 Aucun de ces trois n'appelle l'API, n'écrit en base, ni ne touche le
 réseau. Leur **code de sortie** est le résultat : `0` vert, `1` rouge.
+*(Un quatrième, `outils/controler-page-privee.mjs`, est le seul du dépôt à
+faire des appels réseau : contre-lecture hostile **en écriture** avec la
+clé publiable seule — attendu, refus de droit partout.)*
+
+La **passe D** de `controler-proprete.mjs` (19/09/2026, BKL-CIN-098 lot S
+bis) mesure l'ajout du jour, parce que les passes A à C n'en voyaient
+rien : l'expression de forme est-elle **identique caractère pour
+caractère** dans le SQL, dans `file.html` et dans `admin.html` ; juge-t-elle
+bien les douze cas de l'épreuve P-3 (a), **saut de ligne final compris** ;
+le lien est-il créé sous **double garde** ; `traitee` est-il bien **retiré**
+des sorties de `publication_pilote` ; reste-t-il **zéro** `innerHTML`. Elle
+a été **prouvée capable d'être rouge** dans une copie jetable — un
+caractère ôté à l'expression, un `innerHTML` glissé, une classe de slug
+ouverte aux majuscules : trois fois `exit 1`.
 
 ## Coût, chiffré après les bornes
 

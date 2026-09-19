@@ -124,12 +124,27 @@ select 5,
 union all
 select 6,
        'demandes du jour',
-       -- attendu : au moins 1 le jour du test -- 0 signifierait que
-       -- l'insert n'a pas eu lieu, et l'accuse recu par le visiteur ne
-       -- doit alors PAS avoir annonce un enregistrement
+       -- attendu : informatif -- AMENDE LE 19/09/2026 (BKL-CIN-098
+       -- lot S bis, decision d'AH du jour, verbatim : "Les rendre
+       -- informatifs" -- option marquee "Recommande" a l elicitation ;
+       -- ecart n.151 du greffe).
+       -- L'attendu etait 'au moins 1' depuis l'origine : "0 signifierait
+       -- que l'insert n'a pas eu lieu, et l'accuse recu par le visiteur
+       -- ne doit alors PAS avoir annonce un enregistrement". Il valait
+       -- LE JOUR DU TEST de la fiche A, ou une demande venait d'etre
+       -- soumise. Une base VIVANTE ne peut plus le satisfaire : un jour
+       -- sans demande rend 0, et ce 0 est normal. Un controle qui rougit
+       -- sur une base saine cesse d'etre un detecteur (regle S-6 du
+       -- PATRON-SERVICE-SERVERLESS) -- et un rouge permanent finit par se
+       -- lire comme un decor.
+       -- LA MESURE RESTE AFFICHEE, et c'est tout l'objet : le nombre de
+       -- demandes du jour se LIT, il ne se juge plus. Pour eprouver que
+       -- l'insert du formulaire fonctionne, la mesure est ailleurs --
+       -- epreuve P-1 (le plafond laisse passer le role serveur) et une
+       -- soumission reelle.
        (select count(*)::text from public.demandes
          where created_at::date = current_date),
-       'au moins 1'
+       'informatif -- controle du JOUR d un test'
 
 union all
 select 7,
@@ -167,14 +182,28 @@ select 8,
 union all
 select 9,
        'lignes posees par l IA hors proposee',
-       -- attendu : 0 -- BORNE : l'IA ne propose JAMAIS de statut ; toute
-       -- ligne dont le decideur est AH et le statut autre que proposee a
-       -- ete deplacee A LA MAIN par AH, ce qui est la regle. Ce controle
-       -- se lit donc AVANT tout arbitrage manuel ; apres, il compte les
-       -- deplacements d AH et cesse d etre un controle de borne.
+       -- attendu : informatif -- AMENDE LE 19/09/2026 (BKL-CIN-098
+       -- lot S bis, decision d'AH du jour, verbatim : "Les rendre
+       -- informatifs" -- option marquee "Recommande" a l elicitation ;
+       -- ecart n.151 du greffe).
+       -- L'attendu etait '0 avant tout arbitrage manuel d AH'. Sa propre
+       -- note le disait deja : "ce controle se lit AVANT tout arbitrage
+       -- manuel ; apres, il compte les deplacements d AH et cesse d etre
+       -- un controle de borne". Nous y sommes : AH arbitre depuis le
+       -- 25/08, et ce nombre compte desormais SES gestes -- 5 au
+       -- 19/09/2026. Le garder a '0' serait tenir pour rouge le
+       -- fonctionnement normal du service.
+       -- LA BORNE ELLE-MEME N'EST PAS ABANDONNEE, elle est mesuree
+       -- AILLEURS, et mieux : "l IA ne pose jamais un statut" est prouve
+       -- par STRUCTURE dans outils/controler-durcissement.mjs -- le champ
+       -- 'statut' est ABSENT du schema de sortie envoye au modele, et le
+       -- controle le verifie sur le schema serialise. Une impossibilite
+       -- mecanique vaut mieux qu'un comptage de lignes.
+       -- LA MESURE RESTE AFFICHEE : elle dit combien de demandes ont
+       -- quitte 'proposee', ce qui se lit d'un coup d oeil.
        (select count(*)::text from public.demandes
          where statut <> 'proposee'),
-       '0 avant tout arbitrage manuel d AH'
+       'informatif -- la borne (l IA ne pose jamais un statut) est tenue par controler-durcissement'
 
 union all
 select 10,

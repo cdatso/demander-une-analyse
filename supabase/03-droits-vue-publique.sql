@@ -37,8 +37,8 @@
 -- !!! 01 commence par 'drop view' puis 'drop table' : le rejouer en
 -- !!! production DETRUIRAIT toutes les demandes.
 --
--- Rejouable sans effet de bord : un 'revoke' d'un droit absent ne fait
--- rien, un 'grant' d'un droit deja detenu non plus.
+-- !!! "Rejouable sans effet de bord" : FAUX depuis le 18/09/2026 -- CE
+-- !!! SCRIPT NE SE REJOUE JAMAIS SEUL (avertissement date, fin de fichier).
 --
 -- ---------------------------------------------------------------------
 -- POURQUOI (RISKLOG R-023 ; analyse CIN-096 (a) L2.0)
@@ -118,3 +118,47 @@ grant select on public.demandes_publiques to anon;
 --
 -- Fichier destine a une MACHINE (colle dans l'editeur SQL de Supabase) :
 -- UTF-8 SANS BOM, comme ses voisins.
+--
+-- =====================================================================
+-- !!! AVERTISSEMENT DATE DU 19/09/2026 -- CE SCRIPT NE SE REJOUE JAMAIS
+-- !!! SEUL. (BKL-CIN-098 lot S : constat ; lot S bis : cet erratum.)
+-- =====================================================================
+-- Rien n'est reecrit (charte regle 5). L'affirmation de la l. 40 --
+-- "Rejouable sans effet de bord : un 'revoke' d'un droit absent ne fait
+-- rien, un 'grant' d'un droit deja detenu non plus" -- portait jusqu'au
+-- 18/09/2026. Elle est FAUSSE depuis, et la l. 40 y renvoie desormais.
+-- Les lignes 40-41 sont remplacees A NOMBRE EGAL, pour que les renvois
+-- de la note de tete (l. 48, 49, 54, 60, 86, 89) restent justes.
+--
+-- CE QUI EST VRAI. Le 'revoke all on public.demandes' de la SECTION 2
+-- emporte AUSSI les droits de COLONNE accordes par
+-- 05-page-privee-w2.sql (section 6) et par 06-statut-publiee-pilote.sql
+-- (section 6). Ce ne sont pas "des droits deja detenus" qu'un rejeu
+-- rendrait a l'identique : ils tombent AVEC le 'select' de table, et
+-- RIEN dans ce fichier ne les re-accorde. La note de tete du 18/09 avait
+-- vu la cause (l. 11-17) SANS corriger l'affirmation.
+--
+-- MESURE DU 19/09/2026 vers 16h00 -- ce script a ete rejoue par meprise,
+-- et voici ce que cela a coute, controles de 02-controles-demandes.sql :
+--   n.12 : '0/0/0/true/true' avant  ->  '0/0/7/false/true' apres
+--   n.14 : '7 / 0'           avant  ->  '0 / 0'            apres
+--   n.23 : '2 | page_pilote, statut' avant -> '0 | (aucune)' apres
+-- Les SEPT paires (colonne, privilege) d'authenticated sont tombees d'un
+-- coup, avec son 'select' de table. LA PAGE PRIVEE est restee hors
+-- service une dizaine de minutes. La surface PUBLIQUE n'a JAMAIS ete
+-- affectee (HTTP 200 mesure a 16h03, en pleine panne) ; aucune donnee n'a
+-- ete touchee ; RIEN ne s'est ouvert ('anon' a zero partout, 8/8 a la
+-- contre-lecture hostile).
+--
+-- LA REPARATION, si le cas se reproduit : rejouer les 'grant' de
+-- 05-page-privee-w2.sql section 6 et de 06-statut-publiee-pilote.sql
+-- section 6 -- PAS ce fichier-ci. Puis relire les controles n.12, n.14
+-- et n.23 de 02-controles-demandes.sql.
+--
+-- LA CAUSE DE LA MEPRISE, dite pour qu'elle ne se rejoue pas : des gestes
+-- avaient ete NUMEROTES "1, 2, 3" a cote de fichiers nommes 01, 02, 03.
+-- UN GESTE SE NOMME PAR LE NOM DE SON FICHIER, jamais par un numero nu.
+--
+-- AUCUNE LIGNE DE CODE DE CE FICHIER N'A CHANGE le 19/09/2026 : cet
+-- erratum est en commentaires, et lui seul.
+-- =====================================================================
