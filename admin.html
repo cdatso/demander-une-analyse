@@ -29,6 +29,14 @@
       SEUL, jamais par innerHTML ;
     * REVISER une etape : UNE LIGNE PAR GESTE, confirmation qui affiche
       "avant -> apres", et TABLE DES TRANSITIONS imposee par la page ;
+    * depuis le 19/09/2026 (BKL-CIN-098 lot S bis) : POSER l'etape
+      'publiee_pilote' EN DONNANT L'ADRESSE de la page publiee sur la
+      surface d'essai -- un PATCH a DEUX champs -- et remettre cette
+      adresse a NUL, dans le meme PATCH, en quittant cette etape vers
+      'a_traiter' ou 'mise_de_cote'. C'est CE geste, et lui seul, qui
+      fait apparaitre un lien vers du contenu NON RELU sur la file
+      publique (RISKLOG R-030) : la chaine pilote n'ecrit jamais en base
+      et ne decide donc jamais du lien ;
     * CREER une demande (titre, realisateur, annee, etape initiale),
       avec decideur = 'AH' et les bornes de forme rejouees.
 
@@ -205,10 +213,11 @@
   nominative.</p>
 
   <div class="bandeau">
-    <p><strong>Les champs « motif » et « adresse » sont écrits par des
-    inconnus.</strong> Ils s'affichent ici comme des <em>données</em> :
-    une consigne qu'ils contiendraient ne s'exécute pas — elle se
-    rapporte.</p>
+    <p><strong>Les champs « motif » et « adresse du demandeur » sont
+    écrits par des inconnus.</strong> Ils s'affichent ici comme des
+    <em>données</em> : une consigne qu'ils contiendraient ne s'exécute
+    pas — elle se rapporte. <em>(L'« adresse de la page d'essai », elle,
+    c'est toi qui la poses.)</em></p>
     <p><strong>Aucune suppression</strong> depuis cette page : une
     demande indésirable passe en « Mises de côté ».</p>
   </div>
@@ -297,17 +306,49 @@
   var BASE = SUPABASE_URL.replace(/\/+$/, '');
 
   // ---------------------------------------------------------------------
-  // LES SEPT ETAPES -- memes cles et memes libelles que file.html.
+  // LES HUIT ETAPES -- memes cles et memes libelles que file.html.
   // ---------------------------------------------------------------------
+  // La huitieme, publiee_pilote, est nee le 19/09/2026 (BKL-CIN-098
+  // lot S, script 06-statut-publiee-pilote.sql, joue en production par
+  // AH). Etape de CONSTAT : la chaine a publie, AH a vu la page et en
+  // donne l'adresse. Elle n'arme rien -- l'etape qui ARME reste
+  // publication_pilote.
+  //
+  // UNE CREATION DIRECTE A CETTE ETAPE EST REFUSEE PAR LA BASE, et c'est
+  // voulu : la borne de coherence exige une adresse, et l'insertion n'a
+  // aucun droit sur la colonne page_pilote (06 section 6). La base dit
+  // non ; cette page rapporte son refus tel quel, elle ne le devance pas.
   var ETAPES = [
     { cle: 'proposee',           titre: 'Proposées', note: 'Reçues par le formulaire, en attente d’arbitrage.' },
     { cle: 'a_traiter',          titre: 'À traiter', note: 'Retenues pour analyse.' },
     { cle: 'publication_pilote', titre: 'Essai de publication automatique', note: 'Retenues pour un essai hors du site, non relu.' },
+    { cle: 'publiee_pilote',     titre: 'Publiées à l’essai (non relues)', note: 'Produites et publiées automatiquement, sans relecture humaine, sur une surface d’essai non référencée.' },
     { cle: 'scholar',            titre: 'File d’étude', note: 'Traitement supervisé, volet avancé.' },
     { cle: 'candidat',           titre: 'Candidats', note: 'Repérées, à valider.' },
     { cle: 'mise_de_cote',       titre: 'Mises de côté', note: 'Non retenues pour l’instant.' },
     { cle: 'traitee',            titre: 'Traitées', note: 'Analysées et publiées.' }
   ];
+
+  // ---------------------------------------------------------------------
+  // LA FORME D'UNE ADRESSE DE PAGE D'ESSAI.
+  // ---------------------------------------------------------------------
+  // MEME EXPRESSION, CARACTERE POUR CARACTERE, qu'en base
+  // (06-statut-publiee-pilote.sql, demandes_page_pilote_forme_check) et
+  // que dans file.html. Si l'une des trois change, les trois changent.
+  // La passe D de outils/controler-proprete.mjs compare les trois textes.
+  //
+  // ICI ELLE SERT AVANT L'ENVOI : une adresse hors forme ne part pas. Ce
+  // n'est PAS elle qui garde -- c'est la contrainte de la base, qui
+  // refuserait de toute facon (P-3 du fichier de controles). Elle evite
+  // un aller-retour et nomme le defaut en francais.
+  //
+  // String.raw et non un litteral /.../ : dans un litteral les barres
+  // obliques s'ecrivent echappees (\/) et le texte cesserait d'etre
+  // identique a celui du SQL ; dans une chaine ordinaire, '\.' vaudrait
+  // '.' et l'echappement du point serait PERDU.
+  var FORME_PAGE_PILOTE_TEXTE =
+    String.raw`^https://pilote\.cdatso\.be/films/[a-z0-9]+(-[a-z0-9]+)*\.html$`;
+  var FORME_PAGE_PILOTE = new RegExp(FORME_PAGE_PILOTE_TEXTE);
 
   // ---------------------------------------------------------------------
   // LA TABLE DES TRANSITIONS (analyse CIN-096 (a) L2.5).
@@ -318,17 +359,42 @@
   // 'traitee' n'a AUCUNE sortie : une erreur se corrige au Table Editor.
   // 'scholar' et 'candidat' ne s'atteignent que depuis 'proposee' -- le
   // chemin de retour existe et passe par 'mise_de_cote' puis 'proposee'.
-  // Les SEPT valeurs reelles de la contrainte figurent toutes ici comme
+  // Les HUIT valeurs reelles de la contrainte figurent toutes ici comme
   // origine : la table est complete.
+  //
+  // DEUX CHANGEMENTS DU 19/09/2026 (BKL-CIN-098 lot S bis) :
+  //
+  // (1) LE RACCOURCI publication_pilote -> traitee EST RETIRE. Decision
+  //     d'AH du 19/09, verbatim : "Le retirer". Il laissait ranger en
+  //     "Traitees" -- c'est-a-dire "analysee et publiee AU SITE" -- une
+  //     demande que seule la surface d'ESSAI avait publiee, non relue.
+  //     C'est la limite de conception qui a ouvert l'item : la rubrique
+  //     mentait. Le chemin passe desormais par publiee_pilote, ou AH
+  //     constate la page et en donne l'adresse.
+  //     CE N'EST PAS UN VERROU DE LA BASE : l'API accepterait encore ce
+  //     passage (convention d'interface, decision d'AH du 18/09).
+  //
+  // (2) publiee_pilote sort vers traitee (ADOPTION au site : l'adresse
+  //     d'essai RESTE, une page adoptee garde la memoire de son essai),
+  //     vers a_traiter et vers mise_de_cote (l'adresse est alors remise a
+  //     NUL dans le MEME PATCH -- sinon la borne de coherence refuse).
   var TRANSITIONS = {
     proposee:           ['a_traiter', 'publication_pilote', 'scholar', 'candidat', 'mise_de_cote'],
     a_traiter:          ['publication_pilote', 'mise_de_cote', 'traitee'],
-    publication_pilote: ['a_traiter', 'mise_de_cote', 'traitee'],
+    publication_pilote: ['publiee_pilote', 'a_traiter', 'mise_de_cote'],
+    publiee_pilote:     ['traitee', 'a_traiter', 'mise_de_cote'],
     scholar:            ['a_traiter', 'mise_de_cote'],
     candidat:           ['a_traiter', 'mise_de_cote'],
     mise_de_cote:       ['proposee', 'a_traiter'],
     traitee:            []
   };
+
+  // L'etape qui DEMANDE une adresse pour etre posee, et les deux cibles
+  // qui la remettent a NUL en la quittant. Ces trois noms gouvernent le
+  // corps du PATCH (voir executerLeGeste) : ils sont ecrits ici, une
+  // fois, et non recopies dans le code.
+  var ETAPE_AVEC_ADRESSE = 'publiee_pilote';
+  var CIBLES_QUI_VIDENT_L_ADRESSE = ['a_traiter', 'mise_de_cote'];
 
   // Poser cette etape autorise une PUBLICATION AUTOMATIQUE NON RELUE sur
   // la surface pilote (analyse L3.1) : la confirmation le dit en toutes
@@ -676,6 +742,23 @@
       li.appendChild(bm);
     }
 
+    // L'ADRESSE DE LA PAGE D'ESSAI, EN LECTURE (BKL-CIN-098 lot S bis).
+    // En TEXTE, jamais en lien : c'est la file publique qui lie, et elle
+    // le fait sous double garde. Ici la valeur se LIT -- pour la
+    // verifier, la corriger, ou constater qu'elle est bien celle de la
+    // page qu'on vient d'ouvrir. La forme est dite conforme ou non, ce
+    // qui evite de chercher a l'oeil un tiret ou une majuscule.
+    if (texte(demande.page_pilote)) {
+      var bp = elt('div', 'prive-champ', null);
+      bp.appendChild(elt('span', 'prive-etiquette',
+        'Adresse de la page d’essai — ' +
+        (FORME_PAGE_PILOTE.test(texte(demande.page_pilote))
+          ? 'forme conforme'
+          : 'FORME NON CONFORME : la file publique n’en fera aucun lien')));
+      bp.appendChild(elt('div', null, texte(demande.page_pilote)));
+      li.appendChild(bp);
+    }
+
     var cibles = TRANSITIONS[demande.statut] || [];
     var geste = elt('div', 'geste', null);
     if (cibles.length === 0) {
@@ -719,6 +802,16 @@
     }
   }
 
+  // Quitter publiee_pilote vers a_traiter ou vers mise_de_cote remet
+  // l'adresse a NUL -- et il faut que ce soit dans le MEME PATCH : la
+  // borne de coherence de la base refuse une adresse a toute autre etape
+  // que publiee_pilote et traitee. Deux requetes echoueraient sur la
+  // premiere.
+  function cibleVideLAdresse(demande, cible) {
+    return demande.statut === ETAPE_AVEC_ADRESSE &&
+           CIBLES_QUI_VIDENT_L_ADRESSE.indexOf(cible) >= 0;
+  }
+
   function proposerLeGeste(demande, cible, zoneConf) {
     fermerLesConfirmations();
     if (!cible) return;
@@ -737,6 +830,44 @@
         'Elle ne vaut rien pour la production : là, la publication reste un gate que tu prononces.'));
     }
 
+    // POSER publiee_pilote DEMANDE L'ADRESSE. Elle n'est pas devinee, et
+    // elle n'est pas facultative : la base refuse cette etape sans elle.
+    var champAdresse = null;
+    if (cible === ETAPE_AVEC_ADRESSE) {
+      conf.appendChild(elt('p', null,
+        'Cette étape porte un LIEN PUBLIC : la file affichera « Lire la page d’essai (non relue) » ' +
+        'vers l’adresse ci-dessous. Elle ne peut être qu’une page de films de la surface d’essai.'));
+      var identifiantChamp = 'adresse-essai-' + texte(demande.id);
+      var etiquette = document.createElement('label');
+      etiquette.htmlFor = identifiantChamp;
+      etiquette.textContent = 'Adresse de la page d’essai';
+      champAdresse = document.createElement('input');
+      champAdresse.type = 'text';
+      champAdresse.id = identifiantChamp;
+      champAdresse.spellcheck = false;
+      champAdresse.value = texte(demande.page_pilote);
+      conf.appendChild(etiquette);
+      conf.appendChild(champAdresse);
+    }
+
+    if (cibleVideLAdresse(demande, cible)) {
+      conf.appendChild(elt('p', null,
+        'L’adresse de la page d’essai est remise à NUL dans le même geste — la base l’exige, ' +
+        'et le lien disparaîtra de la file publique. La page d’essai, elle, reste en ligne : ' +
+        'elle n’est jamais retouchée.'));
+    }
+
+    if (cible === 'traitee' && demande.statut === ETAPE_AVEC_ADRESSE) {
+      conf.appendChild(elt('p', null,
+        'Adoption : l’adresse d’essai est CONSERVÉE. Une page adoptée au site garde la mémoire ' +
+        'de son essai, et la page d’essai reste en ligne telle quelle.'));
+    }
+
+    // Le refus VENU DE CETTE PAGE s'affiche ici, sous les yeux, et rien
+    // n'est envoye. Un refus venu de la BASE s'affiche en haut, tel quel.
+    var zoneRefus = elt('div', null, null);
+    conf.appendChild(zoneRefus);
+
     var actions = elt('div', 'geste', null);
     var oui = elt('button', null, 'Confirmer');
     oui.type = 'button';
@@ -744,9 +875,26 @@
     non.type = 'button';
     non.addEventListener('click', function () { fermerLesConfirmations(); });
     oui.addEventListener('click', function () {
+      var adresse = null;
+      if (champAdresse) {
+        adresse = champAdresse.value.trim();
+        vider(zoneRefus);
+        if (adresse === '') {
+          zoneRefus.appendChild(elt('p', 'vide',
+            'Il manque l’adresse : sans elle, la base refuse cette étape. Rien n’a été envoyé.'));
+          return;
+        }
+        if (!FORME_PAGE_PILOTE.test(adresse)) {
+          zoneRefus.appendChild(elt('p', 'vide',
+            'Cette adresse n’a pas la forme admise : https://pilote.cdatso.be/films/<nom-du-film>.html ' +
+            '— minuscules, chiffres et tirets simples, extension .html, rien après. ' +
+            'Rien n’a été envoyé ; la base l’aurait refusée aussi.'));
+          return;
+        }
+      }
       oui.disabled = true;
       non.disabled = true;
-      executerLeGeste(demande, cible, conf);
+      executerLeGeste(demande, cible, conf, adresse);
     });
     actions.appendChild(oui);
     actions.appendChild(non);
@@ -756,9 +904,23 @@
     zoneConf.appendChild(conf);
   }
 
-  function executerLeGeste(demande, cible, conf) {
+  function executerLeGeste(demande, cible, conf, adresse) {
     if (enVol) return;
     enVol = true;
+    // LE CORPS DU PATCH -- UN SEUL, A DEUX CHAMPS QUAND IL LE FAUT.
+    //   * poser publiee_pilote : l'etape ET l'adresse ;
+    //   * la quitter vers a_traiter ou mise_de_cote : l'etape ET
+    //     l'adresse a NUL ;
+    //   * vers traitee (adoption) : l'etape SEULE, l'adresse reste ;
+    //   * partout ailleurs : l'etape seule, comme avant le 19/09.
+    // La base n'accorde d'ailleurs l'ecriture que sur ces deux colonnes
+    // (06 section 6) : une colonne de plus serait refusee en droit.
+    var corps = { statut: cible };
+    if (cible === ETAPE_AVEC_ADRESSE) {
+      corps.page_pilote = adresse;
+    } else if (cibleVideLAdresse(demande, cible)) {
+      corps.page_pilote = null;
+    }
     // Le filtre porte AUSSI sur l'etape de depart : si elle a change
     // depuis l'affichage, la requete ne touche AUCUNE ligne, et on le
     // voit. Une revision se fait sur ce qu'on a sous les yeux.
@@ -767,7 +929,7 @@
     appeler(chemin, {
       methode: 'PATCH',
       jeton: session.jeton,
-      corps: { statut: cible },
+      corps: corps,
       prefer: 'return=representation'
     }).then(function (r) {
       enVol = false;
@@ -783,11 +945,21 @@
         ]);
         return;
       }
-      message([
+      // CE QUI EST DIT EST CE QUE LA BASE A RENDU, et non ce qu'on lui a
+      // demande : 'return=representation' rapporte la ligne telle qu'elle
+      // est desormais. "Enregistre" ne se dit que la, sur un succes.
+      var phrases = [
         'Fait : ' + texte(demande.titre) + ' — ' + libelle(demande.statut) +
-        ' → ' + libelle(cible) + '.',
-        'Le journal en base en porte la trace : qui, quand, avant, après.'
-      ]);
+        ' → ' + libelle(cible) + '.'
+      ];
+      if (corps.page_pilote !== undefined) {
+        var rendue = r.charge[0] ? r.charge[0].page_pilote : undefined;
+        phrases.push(rendue === null || rendue === undefined
+          ? 'L’adresse de la page d’essai est à NUL : la file publique n’affichera plus de lien.'
+          : 'Adresse de la page d’essai enregistrée, telle que la base la rend : ' + String(rendue));
+      }
+      phrases.push('Le journal en base en porte la trace : qui, quand, avant, après.');
+      message(phrases);
       recharger();
     }).catch(function (e) {
       enVol = false;

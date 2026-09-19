@@ -20,6 +20,17 @@
   ZERO RESSOURCE EXTERNE : aucune feuille de style distante, aucun script
   tiers, aucune police distante.
 
+  DEPUIS LE 19/09/2026 (BKL-CIN-098 lot S bis), CETTE PAGE PORTE UN LIEN
+  VERS DU CONTENU NON RELU : la rubrique "Publiees a l'essai (non
+  relues)" renvoie aux pages de la surface d'essai pilote.cdatso.be. Sur
+  decision d'AH du 19/09 ("je retiens A avec B et D"), l'arbitrage A6 du
+  16/09 -- surface pilote "non indexee, NON LIEE" -- est AMENDE : la
+  surface reste non indexee et marquee, et devient liee depuis DEUX
+  points, ici et la porte du site. Le risque est nomme au RISKLOG, R-030.
+  Le lien n'apparait qu'apres un geste d'AH (etape + adresse) et sous la
+  double garde de carte() ; la chaine pilote, elle, n'ecrit jamais en
+  base.
+
   Le texte affiche au visiteur est du CONTENU : francais accentue. Le
   CODE reste en ASCII pur.
 
@@ -74,6 +85,8 @@
     margin: 0.15rem 0.3rem 0.15rem 0;
     color: var(--accent);
   }
+  .lien-essai { margin-top: 0.5rem; font-size: 0.92rem; }
+  .lien-essai a { color: var(--accent); }
   #message {
     border-left: 3px solid var(--alerte);
     background: var(--carte);
@@ -145,24 +158,61 @@
   var SUPABASE_CLE_PUBLIABLE = 'sb_publishable_p1S5BYDF4W2KOvOcSvxRQQ_15W0dDx5';
 
   // ---------------------------------------------------------------------
-  // Les sept etapes. Les six premieres viennent de l'ancienne file
+  // Les HUIT etapes. Les six premieres viennent de l'ancienne file
   // d'attente interne, dont elles etaient le calque (arbitrage AH n.4).
   // La septieme, publication_pilote (A10 et Q2, 16/09/2026), suit
   // a_traiter : posee par AH seul, elle autorise une publication
   // automatique NON RELUE sur la SURFACE PILOTE SEULEMENT -- jamais un
-  // gate de production. Une demande publiee par le pilote RESTE a cette
-  // etape. Une etape sans demande s'affiche quand meme, vide : la file se
-  // lit d'un coup d'oeil.
+  // gate de production. Une etape sans demande s'affiche quand meme,
+  // vide : la file se lit d'un coup d'oeil.
+  //
+  // LA HUITIEME, publiee_pilote (BKL-CIN-098 lot S bis, 19/09/2026), suit
+  // publication_pilote. Elle existe parce que la rubrique "Traitees"
+  // MENTAIT : une demande publiee sur la surface d'essai -- non relue,
+  // noindex, hors du site -- y etait rangee faute d'une etape propre
+  // (cadrage du 19/09, conception "A avec B"). C'est une etape de
+  // CONSTAT : AH a vu la page et en a donne l'adresse. Elle n'arme rien.
+  // "Essai de publication automatique" reste la file d'attente, SANS
+  // lien ; c'est cette rubrique-ci, et elle seule, qui en porte un.
   // ---------------------------------------------------------------------
   var ETAPES = [
     { cle: 'proposee',     titre: 'Proposées', note: 'Reçues par le formulaire, en attente d’arbitrage.' },
     { cle: 'a_traiter',    titre: 'À traiter', note: 'Retenues pour analyse.' },
     { cle: 'publication_pilote', titre: 'Essai de publication automatique', note: 'Retenues pour un essai hors du site, non relu.' },
+    { cle: 'publiee_pilote', titre: 'Publiées à l’essai (non relues)', note: 'Produites et publiées automatiquement, sans relecture humaine, sur une surface d’essai non référencée.' },
     { cle: 'scholar',      titre: 'File d’étude', note: 'Traitement supervisé, volet avancé.' },
     { cle: 'candidat',     titre: 'Candidats', note: 'Repérées, à valider.' },
     { cle: 'mise_de_cote', titre: 'Mises de côté', note: 'Non retenues pour l’instant.' },
     { cle: 'traitee',      titre: 'Traitées', note: 'Analysées et publiées.' }
   ];
+
+  // ---------------------------------------------------------------------
+  // LA FORME D'UNE ADRESSE DE PAGE D'ESSAI -- DEFENSE EN PROFONDEUR.
+  // ---------------------------------------------------------------------
+  // L'EXPRESSION CI-DESSOUS EST LA MEME, CARACTERE POUR CARACTERE, qu'en
+  // base (supabase/06-statut-publiee-pilote.sql, contrainte
+  // demandes_page_pilote_forme_check) et que dans admin.html. Si l'une
+  // des trois change, les trois changent : sinon cette page afficherait
+  // un lien que la base refuserait, ou l'inverse. La passe D de
+  // outils/controler-proprete.mjs compare les trois textes.
+  //
+  // C'est la BASE qui refuse ; cette page ne lui fait pas confiance pour
+  // autant -- elle affiche un lien a un VISITEUR, et un lien affiche sur
+  // une page publique ne doit jamais pouvoir etre arbitraire.
+  //
+  // POURQUOI String.raw ET NON UN LITTERAL D'EXPRESSION REGULIERE : dans
+  // un litteral /.../ les barres obliques s'ecrivent echappees (\/), et
+  // le texte cesserait d'etre identique a celui du SQL. Dans une chaine
+  // ordinaire, '\.' vaut '.' -- l'echappement du point serait PERDU et
+  // 'piloteXcdatsoYbe' passerait. String.raw garde le texte tel quel.
+  //
+  // LE CAS QU'IL FAUT CONNAITRE : une adresse valide SUIVIE D'UN SAUT DE
+  // LIGNE. JavaScript sans l'indicateur 'm' fait apparier '$' a la fin de
+  // chaine seulement, et la REFUSE donc -- comme PostgreSQL, et a la
+  // difference de Python. Mesure : passe D, cas 12.
+  var FORME_PAGE_PILOTE_TEXTE =
+    String.raw`^https://pilote\.cdatso\.be/films/[a-z0-9]+(-[a-z0-9]+)*\.html$`;
+  var FORME_PAGE_PILOTE = new RegExp(FORME_PAGE_PILOTE_TEXTE);
 
   var zoneMessage = document.getElementById('message');
   var zoneSections = document.getElementById('sections');
@@ -245,6 +295,37 @@
         li.appendChild(zone);
       }
     }
+
+    // -------------------------------------------------------------------
+    // LE LIEN VERS LA PAGE D'ESSAI -- SOUS DOUBLE GARDE, ET SEULEMENT LA.
+    // -------------------------------------------------------------------
+    // DEUX CONDITIONS, et il faut les deux :
+    //   (1) l'etape est EXACTEMENT 'publiee_pilote' -- aucune autre
+    //       rubrique ne porte de lien, "Essai de publication automatique"
+    //       pas davantage ;
+    //   (2) l'adresse est une CHAINE qui passe l'expression de forme, la
+    //       meme qu'en base.
+    // Une adresse qui ne passe pas la garde ne produit PAS de lien, et
+    // rien d'autre ne casse : la carte s'affiche, sans lien. On n'affiche
+    // jamais une adresse non conforme, meme en texte -- ce serait donner
+    // a lire ce qu'on refuse de lier.
+    //
+    // createElement + href + textContent, jamais innerHTML : l'adresse
+    // vient de la base. rel="noopener noreferrer" par principe, alors
+    // meme que le lien s'ouvre dans l'onglet courant.
+    if (demande.statut === 'publiee_pilote' &&
+        typeof demande.page_pilote === 'string' &&
+        FORME_PAGE_PILOTE.test(demande.page_pilote)) {
+      var zoneLien = document.createElement('div');
+      zoneLien.className = 'lien-essai';
+      var lien = document.createElement('a');
+      lien.href = demande.page_pilote;
+      lien.rel = 'noopener noreferrer';
+      lien.textContent = 'Lire la page d’essai (non relue)';
+      zoneLien.appendChild(lien);
+      li.appendChild(zoneLien);
+    }
+
     return li;
   }
 
