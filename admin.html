@@ -37,6 +37,13 @@
       fait apparaitre un lien vers du contenu NON RELU sur la file
       publique (RISKLOG R-030) : la chaine pilote n'ecrit jamais en base
       et ne decide donc jamais du lien ;
+    * depuis le 26/09/2026 (BKL-CIN-099) : au passage vers 'traitee' --
+      depuis 'a_traiter' comme depuis 'publiee_pilote' -- POSER
+      L'ADRESSE DE PRODUCTION de l'analyse (www.cdatso.be), dans le MEME
+      PATCH que l'etape. Le champ est OBLIGATOIRE (decision d'AH du
+      26/09) et verifie AVANT l'envoi ; c'est ce geste qui fait
+      apparaitre "Lire l'analyse" sur la carte "Traitees" de la file
+      publique. 'traitee' reste une etape SANS sortie ni geste ;
     * CREER une demande (titre, realisateur, annee, etape initiale),
       avec decideur = 'AH' et les bornes de forme rejouees.
 
@@ -351,6 +358,20 @@
   var FORME_PAGE_PILOTE = new RegExp(FORME_PAGE_PILOTE_TEXTE);
 
   // ---------------------------------------------------------------------
+  // LA FORME D'UNE ADRESSE DE PRODUCTION (BKL-CIN-099, 26/09/2026).
+  // ---------------------------------------------------------------------
+  // MEME EXPRESSION, CARACTERE POUR CARACTERE, qu'en base
+  // (07-page-production.sql, demandes_page_production_forme_check) et que
+  // dans file.html. Si l'une des trois change, les trois changent ; la
+  // passe D de outils/controler-proprete.mjs compare les trois textes.
+  // Ici, comme pour l'adresse d'essai, elle sert AVANT l'envoi : une
+  // adresse hors forme ne part pas. C'est la base qui garde (epreuve P-6
+  // de 02).
+  var FORME_PAGE_PRODUCTION_TEXTE =
+    String.raw`^https://www\.cdatso\.be/analyses-de-films/films/[a-z0-9]+(-[a-z0-9]+)*\.html$`;
+  var FORME_PAGE_PRODUCTION = new RegExp(FORME_PAGE_PRODUCTION_TEXTE);
+
+  // ---------------------------------------------------------------------
   // LA TABLE DES TRANSITIONS (analyse CIN-096 (a) L2.5).
   // ---------------------------------------------------------------------
   // CONVENTION D'INTERFACE, PAS VERROU DE LA BASE (decision d'AH du
@@ -395,6 +416,12 @@
   // fois, et non recopies dans le code.
   var ETAPE_AVEC_ADRESSE = 'publiee_pilote';
   var CIBLES_QUI_VIDENT_L_ADRESSE = ['a_traiter', 'mise_de_cote'];
+
+  // L'etape qui DEMANDE l'adresse de PRODUCTION (BKL-CIN-099). Deux
+  // chemins y menent -- a_traiter et publiee_pilote -- et le champ est
+  // pose sur les DEUX, parce qu'il depend de la CIBLE, pas de l'origine.
+  // Aucune cible ne la remet a NUL : 'traitee' n'a aucune sortie.
+  var ETAPE_AVEC_ADRESSE_DE_PRODUCTION = 'traitee';
 
   // Poser cette etape autorise une PUBLICATION AUTOMATIQUE NON RELUE sur
   // la surface pilote (analyse L3.1) : la confirmation le dit en toutes
@@ -759,6 +786,19 @@
       li.appendChild(bp);
     }
 
+    // L'ADRESSE DE PRODUCTION, EN LECTURE (BKL-CIN-099). Meme regle : en
+    // TEXTE, jamais en lien ; la forme est dite conforme ou non.
+    if (texte(demande.page_production)) {
+      var bprod = elt('div', 'prive-champ', null);
+      bprod.appendChild(elt('span', 'prive-etiquette',
+        'Adresse de l’analyse au site — ' +
+        (FORME_PAGE_PRODUCTION.test(texte(demande.page_production))
+          ? 'forme conforme'
+          : 'FORME NON CONFORME : la file publique n’en fera aucun lien')));
+      bprod.appendChild(elt('div', null, texte(demande.page_production)));
+      li.appendChild(bprod);
+    }
+
     var cibles = TRANSITIONS[demande.statut] || [];
     var geste = elt('div', 'geste', null);
     if (cibles.length === 0) {
@@ -863,6 +903,30 @@
         'de son essai, et la page d’essai reste en ligne telle quelle.'));
     }
 
+    // POSER traitee DEMANDE L'ADRESSE DE PRODUCTION (BKL-CIN-099), depuis
+    // les DEUX chemins. OBLIGATOIRE : decision d'AH du 26/09. La base, elle,
+    // admet une 'traitee' sans adresse -- c'est la page qui l'exige, et la
+    // cible n'ayant aucune sortie, un oubli ne se corrigerait qu'au Table
+    // Editor.
+    var champProduction = null;
+    if (cible === ETAPE_AVEC_ADRESSE_DE_PRODUCTION) {
+      conf.appendChild(elt('p', null,
+        'Cette étape porte un LIEN PUBLIC : la file affichera « Lire l’analyse » vers l’adresse ' +
+        'ci-dessous. Elle ne peut être qu’une page de films du site de production, et elle est ' +
+        'obligatoire. « Traitées » n’a aucune sortie : vérifie-la avant de confirmer.'));
+      var identifiantProd = 'adresse-production-' + texte(demande.id);
+      var etiquetteProd = document.createElement('label');
+      etiquetteProd.htmlFor = identifiantProd;
+      etiquetteProd.textContent = 'Adresse de l’analyse au site';
+      champProduction = document.createElement('input');
+      champProduction.type = 'text';
+      champProduction.id = identifiantProd;
+      champProduction.spellcheck = false;
+      champProduction.value = texte(demande.page_production);
+      conf.appendChild(etiquetteProd);
+      conf.appendChild(champProduction);
+    }
+
     // Le refus VENU DE CETTE PAGE s'affiche ici, sous les yeux, et rien
     // n'est envoye. Un refus venu de la BASE s'affiche en haut, tel quel.
     var zoneRefus = elt('div', null, null);
@@ -892,9 +956,28 @@
           return;
         }
       }
+      var adresseProduction = null;
+      if (champProduction) {
+        adresseProduction = champProduction.value.trim();
+        vider(zoneRefus);
+        if (adresseProduction === '') {
+          zoneRefus.appendChild(elt('p', 'vide',
+            'Il manque l’adresse de l’analyse au site : elle est obligatoire pour ranger une ' +
+            'demande en « Traitées ». Rien n’a été envoyé.'));
+          return;
+        }
+        if (!FORME_PAGE_PRODUCTION.test(adresseProduction)) {
+          zoneRefus.appendChild(elt('p', 'vide',
+            'Cette adresse n’a pas la forme admise : ' +
+            'https://www.cdatso.be/analyses-de-films/films/<nom-du-film>.html ' +
+            '— avec « www », minuscules, chiffres et tirets simples, extension .html, rien après. ' +
+            'Rien n’a été envoyé ; la base l’aurait refusée aussi.'));
+          return;
+        }
+      }
       oui.disabled = true;
       non.disabled = true;
-      executerLeGeste(demande, cible, conf, adresse);
+      executerLeGeste(demande, cible, conf, adresse, adresseProduction);
     });
     actions.appendChild(oui);
     actions.appendChild(non);
@@ -904,7 +987,7 @@
     zoneConf.appendChild(conf);
   }
 
-  function executerLeGeste(demande, cible, conf, adresse) {
+  function executerLeGeste(demande, cible, conf, adresse, adresseProduction) {
     if (enVol) return;
     enVol = true;
     // LE CORPS DU PATCH -- UN SEUL, A DEUX CHAMPS QUAND IL LE FAUT.
@@ -915,11 +998,21 @@
     //   * partout ailleurs : l'etape seule, comme avant le 19/09.
     // La base n'accorde d'ailleurs l'ecriture que sur ces deux colonnes
     // (06 section 6) : une colonne de plus serait refusee en droit.
+    //
+    // AMENDE LE 26/09/2026 (BKL-CIN-099) : vers traitee, depuis a_traiter
+    // comme depuis publiee_pilote, le corps porte AUSSI l'adresse de
+    // PRODUCTION -- l'etape ET page_production, dans le MEME PATCH ;
+    // l'adresse d'essai, elle, n'est toujours pas touchee a l'adoption.
+    // Le droit d'ecrire page_production vient de 07 section 5 ; le
+    // journal en garde DEUX lignes, 'etape' et 'adresse' (07 section 6).
     var corps = { statut: cible };
     if (cible === ETAPE_AVEC_ADRESSE) {
       corps.page_pilote = adresse;
     } else if (cibleVideLAdresse(demande, cible)) {
       corps.page_pilote = null;
+    }
+    if (cible === ETAPE_AVEC_ADRESSE_DE_PRODUCTION) {
+      corps.page_production = adresseProduction;
     }
     // Le filtre porte AUSSI sur l'etape de depart : si elle a change
     // depuis l'affichage, la requete ne touche AUCUNE ligne, et on le
@@ -957,6 +1050,12 @@
         phrases.push(rendue === null || rendue === undefined
           ? 'L’adresse de la page d’essai est à NUL : la file publique n’affichera plus de lien.'
           : 'Adresse de la page d’essai enregistrée, telle que la base la rend : ' + String(rendue));
+      }
+      if (corps.page_production !== undefined) {
+        var rendueProd = r.charge[0] ? r.charge[0].page_production : undefined;
+        phrases.push(rendueProd === null || rendueProd === undefined
+          ? 'ATTENTION : la base rend une adresse de l’analyse VIDE — la carte n’aura pas de lien. Signale-le.'
+          : 'Adresse de l’analyse enregistrée, telle que la base la rend : ' + String(rendueProd));
       }
       phrases.push('Le journal en base en porte la trace : qui, quand, avant, après.');
       message(phrases);
