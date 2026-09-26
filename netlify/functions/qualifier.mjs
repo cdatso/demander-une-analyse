@@ -489,11 +489,31 @@ export function ramenerAuVocabulaire(objet) {
       .slice(0, MAX_SOURCES)
       .map((s) => s.trim().slice(0, MAX_CAR_SOURCE));
   }
+  // ETAT et CAUSE sont poses PAR LE CODE (jamais demandes au modele) :
+  // la demande s'enregistre toujours, mais la qualification dit pourquoi
+  // elle est incomplete. Les sources ne comptent pas : une liste vide est
+  // legitime.
+  const renduAbsent = (objet === null || typeof objet !== 'object');
+  const verdicts = [[brut.volet, VOLETS], [brut.genreBase, GENRES_BASE], [brut.difficulte, DIFFICULTES]]
+    .map(([v, liste]) => {
+      if (dansListe(v, liste) !== null) return 'retenue';
+      if (v !== null && v !== undefined) return 'hors_vocabulaire';
+      return 'absente';
+    });
+  const retenues = verdicts.filter((v) => v === 'retenue').length;
+  const etat = retenues === 3 ? 'complete' : (retenues === 0 ? 'vide' : 'partielle');
+  let cause;
+  if (etat === 'complete') cause = 'aucune';
+  else if (renduAbsent) cause = 'rendu_absent';
+  else if (verdicts.indexOf('hors_vocabulaire') !== -1) cause = 'hors_vocabulaire';
+  else cause = 'sans_reponse';
   return {
     volet: dansListe(brut.volet, VOLETS),
     genreBase: dansListe(brut.genreBase, GENRES_BASE),
     sources_probables: sources,
-    difficulte: dansListe(brut.difficulte, DIFFICULTES)
+    difficulte: dansListe(brut.difficulte, DIFFICULTES),
+    etat: etat,
+    cause: cause
   };
 }
 
@@ -766,6 +786,9 @@ export async function repondre(req, deps) {
                  ' genreBase=' + qualification.genreBase +
                  ' difficulte=' + qualification.difficulte +
                  ' sources=' + qualification.sources_probables.length);
+    const clesRendu = (rendu !== null && typeof rendu === 'object') ? Object.keys(rendu).sort() : [];
+    journal.push('qualification etat=' + qualification.etat + ' cause=' + qualification.cause +
+                 ' cles=' + (clesRendu.length ? clesRendu.join(',') : 'aucune'));
   } catch (e) {
     journal.push('APPEL EN ECHEC (' + String(e && e.message ? e.message : e) +
                  ') -- aucun insert, rien n est repute enregistre');

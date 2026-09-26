@@ -787,6 +787,16 @@
     }
   }
 
+  // L'ETAT DE LA QUALIFICATION, EN LECTURE. Deux tables fermees ; une
+  // valeur inconnue s'affiche telle quelle, par texte().
+  var LIBELLES_ETAT_QUALIFICATION = { complete: 'complète', partielle: 'partielle', vide: 'vide' };
+  var LIBELLES_CAUSE_QUALIFICATION = {
+    aucune: 'aucune',
+    sans_reponse: 'le modèle n’a rien su dire',
+    rendu_absent: 'rendu absent',
+    hors_vocabulaire: 'hors vocabulaire'
+  };
+
   function carte(demande) {
     var li = document.createElement('li');
 
@@ -799,6 +809,23 @@
     morceaux.push('n° ' + texte(demande.id));
     morceaux.push('décideur : ' + (texte(demande.decideur) || '(vide)'));
     li.appendChild(elt('div', 'meta', morceaux.join(' · ')));
+
+    var qual = demande.qualification;
+    if (qual !== null && typeof qual === 'object' && !Array.isArray(qual)) {
+      var bq = elt('div', 'prive-champ', null);
+      if ('etat' in qual) {
+        var etatLu = Object.prototype.hasOwnProperty.call(LIBELLES_ETAT_QUALIFICATION, qual.etat)
+          ? LIBELLES_ETAT_QUALIFICATION[qual.etat] : texte(qual.etat);
+        var causeLue = Object.prototype.hasOwnProperty.call(LIBELLES_CAUSE_QUALIFICATION, qual.cause)
+          ? LIBELLES_CAUSE_QUALIFICATION[qual.cause] : texte(qual.cause);
+        bq.appendChild(elt('span', 'prive-etiquette', 'Qualification par le modèle — ' + etatLu));
+        bq.appendChild(elt('div', null, 'cause : ' + causeLue));
+      } else {
+        bq.appendChild(elt('span', 'prive-etiquette', 'Qualification par le modèle'));
+        bq.appendChild(elt('div', null, 'état non marqué (qualification antérieure)'));
+      }
+      li.appendChild(bq);
+    }
 
     // Les deux colonnes que la vue publique ne montre pas. DONNEES.
     if (texte(demande.motif)) {

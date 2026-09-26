@@ -181,6 +181,11 @@ console.log('=== VERIFICATION 5 -- fixture "Les Tontons flingueurs" ===');
 // =====================================================================
 console.log('');
 console.log('=== VERIFICATION 6 -- fixture "film absent" ===');
+// Ce controle change : la qualification stockee porte desormais 'etat' et 'cause', poses PAR LE CODE.
+// On valide donc les quatre clefs du modele contre SCHEMA_SORTIE, puis on borne les deux clefs du code.
+const ETATS_QUALIFICATION = ['complete', 'partielle', 'vide'];
+const CAUSES_QUALIFICATION = ['aucune', 'sans_reponse', 'rendu_absent', 'hors_vocabulaire'];
+const CLEFS_MODELE = ['volet', 'genreBase', 'sources_probables', 'difficulte'];
 {
   const r = await jouer(fixture('demande-absente.json'));
   verifier('statut HTTP 200', r.statut === 200, String(r.statut));
@@ -191,9 +196,17 @@ console.log('=== VERIFICATION 6 -- fixture "film absent" ===');
 
   const ligne = r.lignesInserees[0] || {};
   const q = ligne.qualification || {};
-  const fautes = validerContreSchema(q, SCHEMA_SORTIE, 5);
-  verifier('la qualification VALIDE contre le schema impose', fautes.length === 0,
-           fautes.length === 0 ? JSON.stringify(q) : fautes.join(' ; '));
+  const extrait = { volet: q.volet, genreBase: q.genreBase, sources_probables: q.sources_probables, difficulte: q.difficulte };
+  const fautes = validerContreSchema(extrait, SCHEMA_SORTIE, 5);
+  verifier('la qualification VALIDE contre le schema impose (les quatre clefs du modele)', fautes.length === 0,
+           fautes.length === 0 ? JSON.stringify(extrait) : fautes.join(' ; '));
+  const autres = Object.keys(q).filter((k) => CLEFS_MODELE.indexOf(k) === -1 && k !== 'etat' && k !== 'cause');
+  verifier('AUCUNE autre clef que les quatre du modele plus etat et cause', autres.length === 0,
+           'clefs en trop = ' + JSON.stringify(autres));
+  verifier('etat dans le vocabulaire ferme', ETATS_QUALIFICATION.indexOf(q.etat) !== -1, 'etat = ' + JSON.stringify(q.etat));
+  verifier('cause dans le vocabulaire ferme', CAUSES_QUALIFICATION.indexOf(q.cause) !== -1, 'cause = ' + JSON.stringify(q.cause));
+  verifier('etat = partielle (une clef retenue sur trois)', q.etat === 'partielle', 'etat = ' + JSON.stringify(q.etat));
+  verifier('cause = hors_vocabulaire', q.cause === 'hors_vocabulaire', 'cause = ' + JSON.stringify(q.cause));
   verifier('volet hors vocabulaire ("essai") RAMENE A NULL PAR LE CODE',
            q.volet === null, 'volet = ' + JSON.stringify(q.volet));
   verifier('genreBase hors vocabulaire ("film noir") RAMENE A NULL PAR LE CODE',
@@ -211,6 +224,41 @@ console.log('=== VERIFICATION 6 -- fixture "film absent" ===');
            ligne.annee === 1953 && ligne.mail === null && typeof ligne.motif === 'string',
            'annee=' + ligne.annee + ' mail=' + JSON.stringify(ligne.mail) +
            ' motif=' + (ligne.motif || '').length + ' car.');
+}
+
+// =====================================================================
+console.log('');
+console.log('=== VERIFICATION 6 bis -- la qualification marquee ===');
+// Decision du proprietaire : MARQUER, ne pas refuser. La demande s'enregistre
+// comme avant, et la qualification stockee dit son etat et sa cause.
+{
+  const CAS = [
+    { nom: 'A -- sans reponse', rendu: { volet: null, genreBase: null, difficulte: null, sources_probables: [] },
+      etat: 'vide', cause: 'sans_reponse' },
+    { nom: 'B -- rendu absent', rendu: null, etat: 'vide', cause: 'rendu_absent' },
+    { nom: 'C -- objet vide', rendu: {}, etat: 'vide', cause: 'sans_reponse' },
+    { nom: 'D -- hors vocabulaire partout',
+      rendu: { volet: 'ailleurs', genreBase: 'ailleurs', difficulte: 'ailleurs', sources_probables: [] },
+      etat: 'vide', cause: 'hors_vocabulaire' }
+  ];
+  for (const cas of CAS) {
+    const b = banc();
+    b.deps.qualifier = async () => { b.compteurs.api++; return cas.rendu; };
+    const reponse = await repondre(requete(fixture('demande-absente.json')), b.deps);
+    const texte = await reponse.text();
+    let corps = null;
+    try { corps = JSON.parse(texte); } catch (e) { corps = null; }
+    const ligne = b.lignesInserees[0] || {};
+    const q = ligne.qualification || {};
+    verifier(cas.nom + ' : statut HTTP 200', reponse.status === 200, String(reponse.status));
+    verifier(cas.nom + ' : accuse IDENTIQUE a ACCUSE_ENREGISTREE',
+             JSON.stringify(corps) === JSON.stringify(ACCUSE_ENREGISTREE), JSON.stringify(corps));
+    verifier(cas.nom + ' : UN appel, UN insert', b.compteurs.api === 1 && b.compteurs.insert === 1,
+             b.compteurs.api + ' appel(s), ' + b.compteurs.insert + ' insert(s)');
+    verifier(cas.nom + ' : statut pose a proposee', ligne.statut === 'proposee', String(ligne.statut));
+    verifier(cas.nom + ' : etat = ' + cas.etat, q.etat === cas.etat, 'etat = ' + JSON.stringify(q.etat));
+    verifier(cas.nom + ' : cause = ' + cas.cause, q.cause === cas.cause, 'cause = ' + JSON.stringify(q.cause));
+  }
 }
 
 // =====================================================================

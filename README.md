@@ -111,6 +111,12 @@ L'anti-abus complémentaire reste en place : **validation stricte**
 (plafonds de taille sur le corps et sur chaque champ) plus un **pot de
 miel**.
 
+Une qualification rendue par le modèle, même vide ou hors vocabulaire,
+**s'enregistre toujours** avec la demande : elle porte alors `etat`
+(`complete`, `partielle`, `vide`) et `cause` (`aucune`, `sans_reponse`,
+`rendu_absent`, `hors_vocabulaire`), deux clés d'un vocabulaire fermé
+posées par le code et jamais demandées au modèle.
+
 Hors périmètre également : toute page d'administration, et le lien depuis
 le site de production vers ce service.
 
