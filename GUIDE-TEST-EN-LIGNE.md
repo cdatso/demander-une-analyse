@@ -415,6 +415,54 @@ l'adresse d'**essai** reste en base (mémoire de l'adoption), mais la carte
 « Traitées » ne lie **que** la page du site.
 
 ---
+
+## Archiver une demande (BKL-CIN-092, lot « étape archivée », 26/09/2026)
+
+*Geste ㉕. Même règle : **chaque geste est nommé par son FICHIER ou par son
+BOUTON** ; `supabase/03-droits-vue-publique.sql` ne se rejoue **jamais** ; un
+bloc qui porte `create temporary table` se joue par **« Run without RLS »**.*
+
+**La base, jouée le 26/09/2026.** `supabase/08-etape-archivee.sql` a posé la
+**neuvième** étape, `archivee`, la contrainte « une archivée n'a **aucune**
+adresse », et a **remplacé** la vue publique (`create or replace`, mêmes
+douze colonnes) avec `where statut <> 'archivee'` : une demande archivée
+**disparaît de `file.html`** et **reste** dans la table, avec sa trace au
+journal. Puis `supabase/02-controles-demandes.sql` en entier : **36 lignes**
+(n°7 amendé : neuf valeurs ; n°31 à 35 neufs ; n°35 informatif — le nombre
+d'archivées en table), et les épreuves **P-9 (a)**, **(b)**, **(c)**, un bloc
+à la fois :
+
+| | Ce qu'elle prouve |
+|---|---|
+| **P-9 (a)** | une archivée **avec** adresse est refusée — et c'est la borne **neuve** qui refuse, nommée dans le verdict ; archiver une « Traitées » qui garde son adresse est refusé aussi |
+| **P-9 (b)** | une demande visible en « Mises de côté » **disparaît de la vue** une fois archivée, et **reste** dans la table |
+| **P-9 (c)** | le journal écrit `a_traiter -> mise_de_cote`, puis `mise_de_cote -> archivee`, et **aucune** ligne `adresse` |
+
+**㉕ Ton geste, depuis `admin.html` — archiver une demande.** Une demande
+d'essai, ou indésirable, que la file publique ne doit plus montrer :
+
+1. si elle n'y est pas déjà, range-la d'abord en **« Mises de côté »** :
+   sur sa carte, choisis **« Mises de côté »** puis **« Changer l'étape »**,
+   puis **« Confirmer »** ;
+2. sur sa carte, dans la rubrique « Mises de côté », choisis
+   **« Archivées »** puis **« Changer l'étape »** ;
+3. la confirmation dit : *« Cette étape retire la demande de la file
+   publique ; elle n'a aucune sortie depuis cette page ; la trace reste au
+   journal. »* — **« Confirmer »** ;
+4. le message d'après-coup dit que ses deux adresses sont **à NUL, telles
+   que la base les rend**, et la carte passe dans la rubrique **« Archivées »**
+   de la page privée. Sur `file.html`, elle a **disparu** (« Mises de côté »
+   compte une demande de moins).
+
+**Ce que la page ne propose pas, et c'est voulu** : « Archivées » ne
+s'atteint **que** depuis « Mises de côté » — ni depuis « Traitées » (décision
+d'AH du 26/09), ni depuis une autre étape, ni à la **création** d'une
+demande. **« Archivées » et « Traitées » n'ont aucune sortie** : un retour se
+fait au *Table Editor*, et y laisse sa ligne `etape` au journal. La
+**suppression** reste, elle aussi, un geste du *Table Editor* — la page n'en a
+aucun, et la base ne lui en accorde aucun.
+
+---
 ---
 
 *Le service alimente une table ; **tu** décides. Rien ne s'écrit jamais

@@ -44,6 +44,13 @@
       26/09) et verifie AVANT l'envoi ; c'est ce geste qui fait
       apparaitre "Lire l'analyse" sur la carte "Traitees" de la file
       publique. 'traitee' reste une etape SANS sortie ni geste ;
+    * depuis le 26/09/2026 (BKL-CIN-092, lot "etape archivee") : ARCHIVER
+      une demande DEPUIS 'mise_de_cote' SEULEMENT -- l'etape 'archivee',
+      que la vue publique ne rend pas (08-etape-archivee.sql). Le PATCH
+      pose l'etape ET les deux adresses a NUL. 'archivee' n'a AUCUNE
+      sortie, n'est proposee depuis aucune autre etape -- 'traitee'
+      comprise, decision d'AH du 26/09 -- et ne s'offre pas a la
+      creation ;
     * CREER une demande (titre, realisateur, annee, etape initiale),
       avec decideur = 'AH' et les bornes de forme rejouees.
 
@@ -226,7 +233,9 @@
     pas — elle se rapporte. <em>(L'« adresse de la page d'essai », elle,
     c'est toi qui la poses.)</em></p>
     <p><strong>Aucune suppression</strong> depuis cette page : une
-    demande indésirable passe en « Mises de côté ».</p>
+    demande indésirable passe en « Mises de côté », puis, si elle doit
+    quitter la file publique, en « Archivées » — sans retour depuis
+    cette page, et le journal en garde la trace.</p>
   </div>
 
   <div id="message" hidden></div>
@@ -313,7 +322,8 @@
   var BASE = SUPABASE_URL.replace(/\/+$/, '');
 
   // ---------------------------------------------------------------------
-  // LES HUIT ETAPES -- memes cles et memes libelles que file.html.
+  // LES NEUF ETAPES -- les HUIT de file.html, memes cles et memes
+  // libelles, puis archivee (voir plus bas).
   // ---------------------------------------------------------------------
   // La huitieme, publiee_pilote, est nee le 19/09/2026 (BKL-CIN-098
   // lot S, script 06-statut-publiee-pilote.sql, joue en production par
@@ -325,6 +335,11 @@
   // voulu : la borne de coherence exige une adresse, et l'insertion n'a
   // aucun droit sur la colonne page_pilote (06 section 6). La base dit
   // non ; cette page rapporte son refus tel quel, elle ne le devance pas.
+  //
+  // LA NEUVIEME, archivee (BKL-CIN-092, lot "etape archivee", 26/09/2026 ;
+  // 08-etape-archivee.sql), N'EXISTE QUE SUR CETTE PAGE : la vue publique
+  // ne rend pas ces lignes, et file.html ne la nomme pas. Les huit
+  // premieres gardent les memes cles et les memes libelles que file.html.
   var ETAPES = [
     { cle: 'proposee',           titre: 'Proposées', note: 'Reçues par le formulaire, en attente d’arbitrage.' },
     { cle: 'a_traiter',          titre: 'À traiter', note: 'Retenues pour analyse.' },
@@ -333,7 +348,8 @@
     { cle: 'scholar',            titre: 'File d’étude', note: 'Traitement supervisé, volet avancé.' },
     { cle: 'candidat',           titre: 'Candidats', note: 'Repérées, à valider.' },
     { cle: 'mise_de_cote',       titre: 'Mises de côté', note: 'Non retenues pour l’instant.' },
-    { cle: 'traitee',            titre: 'Traitées', note: 'Analysées et publiées.' }
+    { cle: 'traitee',            titre: 'Traitées', note: 'Analysées et publiées.' },
+    { cle: 'archivee',           titre: 'Archivées', note: 'Retirées de la file publique ; la trace reste.' }
   ];
 
   // ---------------------------------------------------------------------
@@ -380,8 +396,8 @@
   // 'traitee' n'a AUCUNE sortie : une erreur se corrige au Table Editor.
   // 'scholar' et 'candidat' ne s'atteignent que depuis 'proposee' -- le
   // chemin de retour existe et passe par 'mise_de_cote' puis 'proposee'.
-  // Les HUIT valeurs reelles de la contrainte figurent toutes ici comme
-  // origine : la table est complete.
+  // Les NEUF valeurs reelles de la contrainte (huit, puis archivee le
+  // 26/09/2026) figurent toutes ici comme origine : la table est complete.
   //
   // DEUX CHANGEMENTS DU 19/09/2026 (BKL-CIN-098 lot S bis) :
   //
@@ -399,6 +415,18 @@
   //     d'essai RESTE, une page adoptee garde la memoire de son essai),
   //     vers a_traiter et vers mise_de_cote (l'adresse est alors remise a
   //     NUL dans le MEME PATCH -- sinon la borne de coherence refuse).
+  //
+  // UN CHANGEMENT DU 26/09/2026 (BKL-CIN-092, lot "etape archivee") :
+  //
+  // (3) mise_de_cote sort AUSSI vers archivee, et c'est la SEULE origine
+  //     de cette etape -- decisions d'AH du 26/09, verbatim au mandat :
+  //     "AUCUN archivage depuis 'traitee'" ; "depuis 'mise_de_cote'
+  //     SEULEMENT". Une demande passe donc d'abord par "Mises de cote" --
+  //     deux gestes, deux lignes 'etape' au journal. archivee n'a AUCUNE
+  //     sortie, comme traitee : un retour se fait au Table Editor.
+  //     CE N'EST PAS UN VERROU DE LA BASE, comme le reste de cette table ;
+  //     la base, elle, refuse une archivee qui porterait une adresse
+  //     (demandes_archivee_sans_adresse_check).
   var TRANSITIONS = {
     proposee:           ['a_traiter', 'publication_pilote', 'scholar', 'candidat', 'mise_de_cote'],
     a_traiter:          ['publication_pilote', 'mise_de_cote', 'traitee'],
@@ -406,22 +434,39 @@
     publiee_pilote:     ['traitee', 'a_traiter', 'mise_de_cote'],
     scholar:            ['a_traiter', 'mise_de_cote'],
     candidat:           ['a_traiter', 'mise_de_cote'],
-    mise_de_cote:       ['proposee', 'a_traiter'],
-    traitee:            []
+    mise_de_cote:       ['proposee', 'a_traiter', 'archivee'],
+    traitee:            [],
+    archivee:           []
   };
 
   // L'etape qui DEMANDE une adresse pour etre posee, et les deux cibles
   // qui la remettent a NUL en la quittant. Ces trois noms gouvernent le
   // corps du PATCH (voir executerLeGeste) : ils sont ecrits ici, une
   // fois, et non recopies dans le code.
+  //
+  // 'archivee' est ajoutee a la liste le 26/09/2026 (BKL-CIN-092) : c'est
+  // une cible qui VIDE l'adresse, et la liste le dit. Elle n'est
+  // atteignable que depuis mise_de_cote, ou l'adresse est deja nulle :
+  // c'est donc executerLeGeste, et non cibleVideLAdresse, qui pose les
+  // DEUX adresses a NUL vers elle (voir ETAPE_ARCHIVEE ci-dessous).
   var ETAPE_AVEC_ADRESSE = 'publiee_pilote';
-  var CIBLES_QUI_VIDENT_L_ADRESSE = ['a_traiter', 'mise_de_cote'];
+  var CIBLES_QUI_VIDENT_L_ADRESSE = ['a_traiter', 'mise_de_cote', 'archivee'];
 
   // L'etape qui DEMANDE l'adresse de PRODUCTION (BKL-CIN-099). Deux
   // chemins y menent -- a_traiter et publiee_pilote -- et le champ est
   // pose sur les DEUX, parce qu'il depend de la CIBLE, pas de l'origine.
   // Aucune cible ne la remet a NUL : 'traitee' n'a aucune sortie.
   var ETAPE_AVEC_ADRESSE_DE_PRODUCTION = 'traitee';
+
+  // L'etape qui RETIRE une demande de la file publique (BKL-CIN-092,
+  // 26/09/2026). La vue publique ne rend pas ces lignes (08). Le PATCH
+  // vers elle porte l'etape ET les deux adresses a NUL -- une demande en
+  // mise_de_cote n'en a deja aucune (bornes de coherence de 06 et 07),
+  // mais le corps le GARANTIT au lieu de le supposer, et la base le
+  // refuserait sinon (demandes_archivee_sans_adresse_check). Elle ne
+  // s'offre PAS a la creation (decision d'AH du 26/09, elicitation) : on
+  // n'archive que depuis mise_de_cote.
+  var ETAPE_ARCHIVEE = 'archivee';
 
   // Poser cette etape autorise une PUBLICATION AUTOMATIQUE NON RELUE sur
   // la surface pilote (analyse L3.1) : la confirmation le dit en toutes
@@ -897,6 +942,12 @@
         'elle n’est jamais retouchée.'));
     }
 
+    if (cible === ETAPE_ARCHIVEE) {
+      conf.appendChild(elt('p', null,
+        'Cette étape retire la demande de la file publique ; elle n’a aucune sortie depuis ' +
+        'cette page ; la trace reste au journal.'));
+    }
+
     if (cible === 'traitee' && demande.statut === ETAPE_AVEC_ADRESSE) {
       conf.appendChild(elt('p', null,
         'Adoption : l’adresse d’essai est CONSERVÉE. Une page adoptée au site garde la mémoire ' +
@@ -1014,6 +1065,14 @@
     if (cible === ETAPE_AVEC_ADRESSE_DE_PRODUCTION) {
       corps.page_production = adresseProduction;
     }
+    // AMENDE LE 26/09/2026 (BKL-CIN-092) : vers archivee, le corps porte
+    // l'etape ET les DEUX adresses a NUL. Le droit vient de 07 section 5 ;
+    // les adresses etant deja nulles, le journal n'ecrit qu'UNE ligne,
+    // 'etape' (epreuve P-9 (c) de 02).
+    if (cible === ETAPE_ARCHIVEE) {
+      corps.page_pilote = null;
+      corps.page_production = null;
+    }
     // Le filtre porte AUSSI sur l'etape de depart : si elle a change
     // depuis l'affichage, la requete ne touche AUCUNE ligne, et on le
     // voit. Une revision se fait sur ce qu'on a sous les yeux.
@@ -1045,17 +1104,31 @@
         'Fait : ' + texte(demande.titre) + ' — ' + libelle(demande.statut) +
         ' → ' + libelle(cible) + '.'
       ];
-      if (corps.page_pilote !== undefined) {
-        var rendue = r.charge[0] ? r.charge[0].page_pilote : undefined;
-        phrases.push(rendue === null || rendue === undefined
-          ? 'L’adresse de la page d’essai est à NUL : la file publique n’affichera plus de lien.'
-          : 'Adresse de la page d’essai enregistrée, telle que la base la rend : ' + String(rendue));
-      }
-      if (corps.page_production !== undefined) {
-        var rendueProd = r.charge[0] ? r.charge[0].page_production : undefined;
-        phrases.push(rendueProd === null || rendueProd === undefined
-          ? 'ATTENTION : la base rend une adresse de l’analyse VIDE — la carte n’aura pas de lien. Signale-le.'
-          : 'Adresse de l’analyse enregistrée, telle que la base la rend : ' + String(rendueProd));
+      // Vers archivee, les deux adresses partent a NUL : le message dit ce
+      // que la base REND pour les deux, en une phrase -- et non les deux
+      // phrases ci-dessous, dont la seconde crierait a tort a une adresse
+      // de production vide.
+      if (cible === ETAPE_ARCHIVEE) {
+        var rendueArch = r.charge[0] || {};
+        var sansAdresse = (rendueArch.page_pilote === null || rendueArch.page_pilote === undefined) &&
+                          (rendueArch.page_production === null || rendueArch.page_production === undefined);
+        phrases.push(sansAdresse
+          ? 'Archivée : la demande a quitté la file publique. Ses deux adresses sont à NUL, telles que ' +
+            'la base les rend. Elle n’a aucune sortie depuis cette page.'
+          : 'ATTENTION : la base rend une adresse NON NULLE sur une demande archivée. Signale-le.');
+      } else {
+        if (corps.page_pilote !== undefined) {
+          var rendue = r.charge[0] ? r.charge[0].page_pilote : undefined;
+          phrases.push(rendue === null || rendue === undefined
+            ? 'L’adresse de la page d’essai est à NUL : la file publique n’affichera plus de lien.'
+            : 'Adresse de la page d’essai enregistrée, telle que la base la rend : ' + String(rendue));
+        }
+        if (corps.page_production !== undefined) {
+          var rendueProd = r.charge[0] ? r.charge[0].page_production : undefined;
+          phrases.push(rendueProd === null || rendueProd === undefined
+            ? 'ATTENTION : la base rend une adresse de l’analyse VIDE — la carte n’aura pas de lien. Signale-le.'
+            : 'Adresse de l’analyse enregistrée, telle que la base la rend : ' + String(rendueProd));
+        }
       }
       phrases.push('Le journal en base en porte la trace : qui, quand, avant, après.');
       message(phrases);
@@ -1243,8 +1316,12 @@
       session = lireSession();
     }
 
+    // 'archivee' NE S'OFFRE PAS a la creation (decision d'AH du 26/09,
+    // BKL-CIN-092) : on n'archive que depuis mise_de_cote, par un geste
+    // de la table des transitions. La base, elle, l'accepterait.
     var choixEtape = document.getElementById('n-etape');
     for (var i = 0; i < ETAPES.length; i++) {
+      if (ETAPES[i].cle === ETAPE_ARCHIVEE) continue;
       var opt = elt('option', null, ETAPES[i].titre);
       opt.value = ETAPES[i].cle;
       if (ETAPES[i].cle === 'a_traiter') opt.selected = true;

@@ -7,8 +7,8 @@
 -- FORME CONSOLIDEE, reprise de FOR-003 (02-controles.sql, gate AH du
 -- 20/08/2026) et de FOR-004 : le SQL Editor de Supabase n'affiche que le
 -- resultat de la DERNIERE requete d'un script. Une requete par controle
--- n'afficherait donc que le dernier. Les TRENTE-ET-UN controles (vingt-cinq
--- jusqu'au 26/09/2026, voir l'historique) rendent ici
+-- n'afficherait donc que le dernier. Les TRENTE-SIX controles (trente-et-un
+-- avant le lot "etape archivee" du 26/09/2026, voir l'historique) rendent ici
 -- UN SEUL tableau -- colonnes ordre / controle / mesure / attendu -- et
 -- chaque controle porte AUSSI son attendu en commentaire, juste au-dessus
 -- de sa ligne, comme l'exige le mandat.
@@ -24,7 +24,15 @@
 -- AMENDES par la colonne page_production (decision d'AH du 26/09,
 -- verbatim : "Amender en place"), et SIX controles neufs (n.25 a n.30)
 -- pour l'adresse de production et pour le journal ouvert au geste
--- 'adresse'.
+-- 'adresse' ; TRENTE-SIX au lot "etape archivee" de BKL-CIN-092, le
+-- 26/09/2026 -- le n.7 AMENDE en place par la neuvieme etape (accord
+-- d'AH du jour, option "Amender n.7 en place"), et CINQ controles neufs
+-- (n.31 a n.35) pour l'etape 'archivee' et la vue qui la retire.
+--
+-- LES CONTROLES 31 A 35 SUPPOSENT QUE 08-etape-archivee.sql A ETE JOUE.
+-- Avant lui, les n.31 a 33 sont rouges : ce n'est pas une panne, c'est
+-- l'ordre des gestes. L'amendement du n.7 est vrai AVANT comme APRES 08 :
+-- sans 08, aucune ligne ne peut porter 'archivee'.
 --
 -- LES CONTROLES 25 A 30, ET LES AMENDEMENTS DU 26/09/2026 DES N.4, 12,
 -- 14, 21 ET 23, SUPPOSENT QUE 07-page-production.sql A ETE JOUE. Avant
@@ -164,7 +172,7 @@ select 6,
 
 union all
 select 7,
-       'statuts hors des huit valeurs',
+       'statuts hors des neuf valeurs',
        -- attendu : 0 -- la contrainte demandes_statut_check le garantit ;
        -- ce controle verifie qu'elle est bien en place et non desactivee.
        -- Sept valeurs depuis BKL-CIN-096 (b) lot 1 : publication_pilote
@@ -179,10 +187,17 @@ select 7,
        -- rougit sur une base saine. C'est voulu -- il force la mise a
        -- jour. Le nombre de valeurs de la CONTRAINTE elle-meme se lit au
        -- controle immediat de 06.
+       -- AMENDE LE 26/09/2026 (BKL-CIN-092 lot "etape archivee",
+       -- 08-etape-archivee.sql ; accord d'AH du jour, option "Amender n.7
+       -- en place") : NEUF valeurs, 'archivee' en derniere. Le libelle
+       -- disait "huit". Sans cet amendement, ce controle serait devenu
+       -- ROUGE PAR CONSTRUCTION des la premiere demande archivee -- et la
+       -- demande d'essai de la recette RESTE archivee (regle S-6 du
+       -- PATRON). Le nombre de valeurs de la contrainte se lit au n.31.
        (select count(*)::text from public.demandes
          where statut not in ('proposee', 'a_traiter', 'publication_pilote',
                               'publiee_pilote', 'scholar', 'candidat',
-                              'mise_de_cote', 'traitee')),
+                              'mise_de_cote', 'traitee', 'archivee')),
        '0'
 
 union all
@@ -840,6 +855,95 @@ select 30,
        (select count(*)::text from public.demandes
          where statut = 'traitee' and page_production is null),
        'informatif -- 0 apres le bloc R-2 de 07'
+
+union all
+select 31,
+       'contrainte de statut : nombre de valeurs / archivee admise',
+       -- attendu : 9 / true (BKL-CIN-092 lot "etape archivee", 26/09/2026
+       -- -- controle NEUF).
+       -- (i)  avant la barre : combien de valeurs entre apostrophes la
+       --      DEFINITION de demandes_statut_check enumere -> 9. Huit, et
+       --      08 n'a pas ete joue : la page privee ne pourrait pas
+       --      archiver (la base refuserait le PATCH).
+       -- (ii) apres la barre : 'archivee' y figure -> true.
+       -- Le n.7 compte les LIGNES hors liste ; celui-ci lit la CONTRAINTE.
+       -- CONTROLE DE MENTION : que la contrainte ADMETTE une archivee sans
+       -- adresse, c est l epreuve P-9 (a), cas 1.
+       coalesce((select (select count(*) from regexp_matches(pg_get_constraintdef(c.oid),
+                                                               '''[a-z_]+''', 'g'))::text
+                        || ' / ' ||
+                        (pg_get_constraintdef(c.oid) like '%''archivee''%')::text
+                   from pg_constraint c
+                  where c.conrelid = 'public.demandes'::regclass
+                    and c.conname = 'demandes_statut_check'), '(absente)'),
+       '9 / true'
+
+union all
+select 32,
+       'la vue retire les archivees (definition)',
+       -- attendu : true (BKL-CIN-092 lot "etape archivee", 26/09/2026 --
+       -- controle NEUF).
+       -- Il lit la DEFINITION de la vue, telle que la base la rend :
+       -- "WHERE (demandes.statut <> 'archivee'::text)". Sans cette clause,
+       -- une demande archivee reste sur la file publique -- l'etape
+       -- n'aurait plus aucun sens.
+       -- NOTE POUR LES N.21 ET N.26 : 08 REMPLACE la vue par 'create or
+       -- replace', comme 06 et 07 -- elle n'est pas detruite, et les
+       -- positions 11 / 12 restent la preuve qu'elle ne l'a pas ete.
+       -- CONTROLE DE MENTION : que la vue n'en rende AUCUNE, c est le
+       -- n.34 (sur la base vivante) et l epreuve P-9 (b) (sur une ligne
+       -- creee pour l'occasion).
+       (pg_get_viewdef('public.demandes_publiques'::regclass) like '%<> ''archivee''%')::text,
+       'true'
+
+union all
+select 33,
+       'contrainte "archivee sans adresse" : presente / validee',
+       -- attendu : 1 | demandes_archivee_sans_adresse_check / true
+       -- (BKL-CIN-092 lot "etape archivee", 26/09/2026 -- controle NEUF).
+       -- Une archivee n'a ni page_pilote ni page_production. Les bornes
+       -- de coherence de 06 et 07 l'interdisaient deja ; celle-ci le dit
+       -- en UN nom, du cote de l'etape (08 section 2).
+       -- 'validee' : convalidated -- une contrainte posee 'not valid'
+       -- ne verifierait pas les lignes existantes. LE NOM EST AFFICHE :
+       -- un compte juste avec un mauvais nom serait un faux vert.
+       -- CONTROLE D EXISTENCE : qu'elle MORDE, c est l epreuve P-9 (a).
+       (select count(*)::text from pg_constraint
+         where conrelid = 'public.demandes'::regclass
+           and conname = 'demandes_archivee_sans_adresse_check')
+       || ' | ' ||
+       coalesce((select conname::text || ' / ' || convalidated::text
+                   from pg_constraint
+                  where conrelid = 'public.demandes'::regclass
+                    and conname = 'demandes_archivee_sans_adresse_check'), '(aucune)'),
+       '1 | demandes_archivee_sans_adresse_check / true'
+
+union all
+select 34,
+       'lignes archivee rendues par la vue publique',
+       -- attendu : 0 (BKL-CIN-092 lot "etape archivee", 26/09/2026 --
+       -- controle NEUF).
+       -- MESURE DE VALEUR, sur la base VIVANTE : combien de lignes a
+       -- l'etape 'archivee' la vue rend-elle. 0 quel que soit le nombre
+       -- d'archivees en table (n.35) : c'est tout l'objet de l'etape.
+       -- L'editeur joue en 'postgres', qui voit tout ce que la vue rend --
+       -- donc exactement ce que file.html recoit avec la clef publiable.
+       (select count(*)::text from public.demandes_publiques
+         where statut = 'archivee'),
+       '0'
+
+union all
+select 35,
+       'demandes archivees (table)',
+       -- attendu : informatif (BKL-CIN-092 lot "etape archivee",
+       -- 26/09/2026 -- controle NEUF).
+       -- Le nombre se LIT, il ne se juge pas : 0 avant tout archivage,
+       -- puis il ne fait que croitre -- 'archivee' n'a aucune sortie
+       -- depuis la page privee. Rapproche du n.34, il dit combien de
+       -- lignes la table GARDE que la file publique ne montre plus.
+       (select count(*)::text from public.demandes
+         where statut = 'archivee'),
+       'informatif -- ce que la table garde et que la file ne montre pas'
 
 order by ordre;
 
@@ -1794,4 +1898,259 @@ order by ordre;
 -- SI UNE SEULE LIGNE DE P-6, P-7, P-8 OU P-5 REND '>>> ECART <<<' : la
 -- borne correspondante ne fait pas ce qu'elle annonce. ARRET, et on le
 -- signale -- on ne "reessaie" pas, et on ne passe pas a la suite.
+-- ---------------------------------------------------------------------
+
+-- =====================================================================
+-- P-9 -- LES EPREUVES DE L'ETAPE 'archivee'. BKL-CIN-092 lot "etape
+-- archivee", 26/09/2026. A jouer SEPAREMENT par AH, APRES
+-- 08-etape-archivee.sql, UN BLOC A LA FOIS : selectionner le bloc
+-- decommente, puis "Run without RLS" -- JAMAIS "Run and enable RLS"
+-- (voir "LE DIALOGUE DE SUPABASE", plus haut, avant P-3).
+-- =====================================================================
+--
+-- POURQUOI, COMME POUR P-3 A P-8 : les controles n.31 a 34 lisent le
+-- catalogue et la vue vivante. Une contrainte presente mais qui ne
+-- refuse rien, une clause 'where' ecrite mais qui laisse passer la ligne,
+-- un journal qui n'ecrit pas le geste -- tout cela les laisserait VERTS.
+-- Une garde se prouve des DEUX cotes : ce qu'elle laisse passer, ET ce
+-- qu'elle refuse.
+--
+-- MEMES PRECAUTIONS : une transaction terminee par 'rollback' ; un bloc
+-- 'do' dont chaque cas vit dans une SOUS-transaction ('begin ...
+-- exception') ; une table TEMPORAIRE qui accumule les verdicts ; un
+-- compte de restes a jouer APRES le rollback : attendu 0. L'editeur joue
+-- en 'postgres' : ces epreuves mesurent les CONTRAINTES, la VUE et le
+-- DECLENCHEUR, pas les policies.
+--
+-- ---------------------------------------------------------------------
+-- P-9 (a) -- UNE ARCHIVEE AVEC ADRESSE EST REFUSEE -- et PAR LA BORNE
+-- NEUVE, nommee.
+-- ---------------------------------------------------------------------
+-- Quatre cas : un qui doit PASSER (le PATCH d'archivage de la page), trois
+-- qui doivent etre REFUSES.
+--
+-- POURQUOI LE NOM DE LA CONTRAINTE EST DANS LE VERDICT. Les bornes de
+-- coherence de 06 et 07 refusent DEJA une adresse a une archivee : un
+-- simple "REFUSE" serait vert meme si la borne neuve etait morte. Le
+-- verdict nomme donc la contrainte qui refuse. PostgreSQL verifie les
+-- contraintes CHECK d'une table dans l'ORDRE DE LEUR NOM (il les trie a
+-- la lecture du catalogue, pour un ordre deterministe) et rapporte la
+-- PREMIERE qui echoue : 'demandes_archivee_...' precede
+-- 'demandes_page_...'. Si la borne neuve mord, c'est elle qui est nommee ;
+-- si elle etait morte, le verdict nommerait une borne de 06 ou de 07, et
+-- la ligne rendrait '>>> ECART <<<'.
+--
+-- ATTENDU : quatre lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, le compte de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p9a_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p9a$
+-- declare
+--     v_id    bigint;
+--     v_id2   bigint;
+--     v_nom   text;
+--     v_essai text := 'https://pilote.cdatso.be/films/rose.html';
+--     v_url   text := 'https://www.cdatso.be/analyses-de-films/films/rose.html';
+--     v_borne text := 'REFUSE : demandes_archivee_sans_adresse_check';
+-- begin
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-9 a sans adresse -- A ROLLBACK', 'mise_de_cote', 'AH')
+--     returning id into v_id;
+--
+--     -- (1) DOIT PASSER : mise_de_cote -> archivee, les DEUX adresses a
+--     --     NUL -- exactement le PATCH d'archivage de la page privee.
+--     begin
+--         update public.demandes
+--            set statut = 'archivee', page_pilote = null, page_production = null
+--          where id = v_id;
+--         insert into p9a_resultats values ('1 archivee SANS adresse (le PATCH de la page)', 'ACCEPTE', 'ACCEPTE');
+--     exception when check_violation then
+--         get stacked diagnostics v_nom = constraint_name;
+--         insert into p9a_resultats values ('1 archivee SANS adresse (le PATCH de la page)', 'REFUSE : ' || v_nom, 'ACCEPTE');
+--     end;
+--
+--     -- (2) DOIT ETRE REFUSE : une archivee recoit une adresse d'ESSAI.
+--     begin
+--         update public.demandes set page_pilote = v_essai where id = v_id;
+--         insert into p9a_resultats values ('2 adresse d essai sur archivee', 'ACCEPTE', v_borne);
+--     exception when check_violation then
+--         get stacked diagnostics v_nom = constraint_name;
+--         insert into p9a_resultats values ('2 adresse d essai sur archivee', 'REFUSE : ' || v_nom, v_borne);
+--     end;
+--
+--     -- (3) DOIT ETRE REFUSE : une archivee recoit une adresse de
+--     --     PRODUCTION.
+--     begin
+--         update public.demandes set page_production = v_url where id = v_id;
+--         insert into p9a_resultats values ('3 adresse de production sur archivee', 'ACCEPTE', v_borne);
+--     exception when check_violation then
+--         get stacked diagnostics v_nom = constraint_name;
+--         insert into p9a_resultats values ('3 adresse de production sur archivee', 'REFUSE : ' || v_nom, v_borne);
+--     end;
+--
+--     -- (4) DOIT ETRE REFUSE : archiver une TRAITEE en gardant son
+--     --     adresse de production -- le geste que la page ne propose pas
+--     --     (decision d'AH : aucun archivage depuis "Traitees"), et que la
+--     --     base arrete s'il venait du Table Editor sans vider l'adresse.
+--     insert into public.demandes (titre, statut, decideur, page_production)
+--     values ('P-9 a traitee -- A ROLLBACK', 'traitee', 'AH', v_url)
+--     returning id into v_id2;
+--     begin
+--         update public.demandes set statut = 'archivee' where id = v_id2;
+--         insert into p9a_resultats values ('4 archiver une traitee AVEC adresse', 'ACCEPTE', v_borne);
+--     exception when check_violation then
+--         get stacked diagnostics v_nom = constraint_name;
+--         insert into p9a_resultats values ('4 archiver une traitee AVEC adresse', 'REFUSE : ' || v_nom, v_borne);
+--     end;
+-- end
+-- $p9a$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p9a_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0.
+--
+-- select count(*) as restes
+--   from public.demandes
+--  where titre like 'P-9 %A ROLLBACK%';
+--
+-- ---------------------------------------------------------------------
+-- P-9 (b) -- UNE ARCHIVEE EST ABSENTE DE LA VUE, ET PRESENTE EN TABLE.
+-- ---------------------------------------------------------------------
+-- Une ligne d'appui en 'mise_de_cote' -- VISIBLE sur la file publique,
+-- c'est le point de depart -- puis archivee par le PATCH de la page. On
+-- la cherche PAR SON id, avant et apres, dans la vue ET dans la table.
+--
+-- ATTENDU : quatre lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, le compte de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p9b_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p9b$
+-- declare
+--     v_id bigint;
+--     v_n  integer;
+--     v_e  text;
+-- begin
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-9 b vue -- A ROLLBACK', 'mise_de_cote', 'AH')
+--     returning id into v_id;
+--
+--     -- (1) AVANT : en 'mise_de_cote', la ligne EST dans la vue.
+--     select count(*) into v_n from public.demandes_publiques where id = v_id;
+--     insert into p9b_resultats values ('1 avant : dans la vue (mise_de_cote)', v_n::text, '1');
+--
+--     update public.demandes
+--        set statut = 'archivee', page_pilote = null, page_production = null
+--      where id = v_id;
+--
+--     -- (2) APRES : la vue ne la rend PLUS.
+--     select count(*) into v_n from public.demandes_publiques where id = v_id;
+--     insert into p9b_resultats values ('2 apres : dans la vue', v_n::text, '0');
+--
+--     -- (3) APRES : la table la GARDE.
+--     select count(*) into v_n from public.demandes where id = v_id;
+--     insert into p9b_resultats values ('3 apres : dans la table', v_n::text, '1');
+--
+--     -- (4) APRES : a l'etape 'archivee'.
+--     select statut into v_e from public.demandes where id = v_id;
+--     insert into p9b_resultats values ('4 apres : etape en table', coalesce(v_e, '(aucune)'), 'archivee');
+-- end
+-- $p9b$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p9b_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0.
+--
+-- select count(*) as restes
+--   from public.demandes
+--  where titre like 'P-9 %A ROLLBACK%';
+--
+-- ---------------------------------------------------------------------
+-- P-9 (c) -- LE JOURNAL ECRIT 'etape mise_de_cote -> archivee', ET RIEN
+-- D'AUTRE.
+-- ---------------------------------------------------------------------
+-- La vie de la demande d'essai de la recette, rejouee a blanc : creee en
+-- 'a_traiter', passee en 'mise_de_cote' (le PATCH de la page : l'etape
+-- seule), puis archivee (le PATCH de la page : l'etape ET les deux
+-- adresses a NUL). Les adresses etant DEJA nulles, aucune ligne
+-- 'adresse' ne doit s'ecrire ('is distinct from', 07 section 6).
+--
+-- ATTENDU : trois lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, DEUX comptes de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p9c_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p9c$
+-- declare
+--     v_id    bigint;
+--     v_n     integer;
+--     v_texte text;
+-- begin
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-9 c journal -- A ROLLBACK', 'a_traiter', 'AH')
+--     returning id into v_id;
+--
+--     update public.demandes set statut = 'mise_de_cote' where id = v_id;
+--
+--     update public.demandes
+--        set statut = 'archivee', page_pilote = null, page_production = null
+--      where id = v_id;
+--
+--     -- (1) les deux lignes 'etape', dans l'ordre.
+--     select string_agg(avant || ' -> ' || apres, ' | ' order by id) into v_texte
+--       from public.demandes_journal
+--      where demande_id = v_id and geste = 'etape';
+--     insert into p9c_resultats values ('1 lignes etape', coalesce(v_texte, '(aucune)'),
+--         'a_traiter -> mise_de_cote | mise_de_cote -> archivee');
+--
+--     -- (2) aucune ligne 'adresse' : NUL -> NUL ne se trace pas.
+--     select count(*) into v_n
+--       from public.demandes_journal
+--      where demande_id = v_id and geste = 'adresse';
+--     insert into p9c_resultats values ('2 lignes adresse', v_n::text, '0');
+--
+--     -- (3) en tout : la creation et les deux etapes.
+--     select count(*) into v_n from public.demandes_journal where demande_id = v_id;
+--     insert into p9c_resultats values ('3 lignes en tout', v_n::text, '3');
+-- end
+-- $p9c$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p9c_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0 et 0.
+--
+-- select (select count(*) from public.demandes
+--          where titre like 'P-9 %A ROLLBACK%') as demandes_restantes,
+--        (select count(*) from public.demandes_journal j
+--           join public.demandes d on d.id = j.demande_id
+--          where d.titre like 'P-9 %A ROLLBACK%')  as journal_restant;
+--
+-- SI UNE SEULE LIGNE DE P-9 REND '>>> ECART <<<' : la borne
+-- correspondante ne fait pas ce qu'elle annonce. ARRET, et on le signale
+-- -- on ne "reessaie" pas, et on ne passe pas a la suite.
 -- ---------------------------------------------------------------------

@@ -91,6 +91,7 @@ file.html  --GET-->  vue public.demandes_publiques (clé publiable, lecture seul
   et `file.html` **rejoue la même expression** avant de créer le lien. Le
   **journal** trace désormais aussi chaque changement d'adresse (geste
   `adresse`, pour `page_production` comme pour `page_pilote`).
+- **Depuis le 26/09/2026, une demande non retenue peut quitter la file publique sans être supprimée** : l'étape `archivee` (script `supabase/08-etape-archivee.sql`, BKL-CIN-092), posée par AH depuis la page privée **depuis « Mises de côté » seulement**, sans sortie, est retirée de la vue publique par un `where` ; la ligne reste en table, et sa trace au journal.
 
 ### Ce qui n'est PAS dans le périmètre, et qui est déclaré
 

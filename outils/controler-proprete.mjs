@@ -375,12 +375,17 @@ for (const nomPage of PAGES_SERVIES) {
 // liens gardes, et non plus un (voir D-3).
 // Ce qu'elle ne mesure pas reste ce qui est dit ci-dessus : le refus de
 // la BASE est prouve par P-6 et P-7 de 02, joues par AH.
+//
+// ETENDUE LE 26/09/2026 (BKL-CIN-092, lot "etape archivee") A L'ETAPE
+// 'archivee', en trois points de plus -- D-11 (la vue de 08 et son
+// 'where'), D-12 (les transitions, le PATCH, la creation), D-13 (file.html
+// ne la cite pas). Leur detail est en tete de leur bloc, plus bas.
 
 const CHEMIN_SQL_FORME = 'supabase/06-statut-publiee-pilote.sql';
 const ETAPE_NEUVE = 'publiee_pilote';
 
 console.log('');
-console.log('  --- PASSE D : l ajout du lot S bis (BKL-CIN-098) et l adresse de production (BKL-CIN-099), mesures ---');
+console.log('  --- PASSE D : l ajout du lot S bis (BKL-CIN-098), l adresse de production (BKL-CIN-099) et l etape archivee (BKL-CIN-092), mesures ---');
 
 let passeD = true;
 function mesureD(intitule, condition, mesure) {
@@ -725,12 +730,122 @@ if (sourceAdmin === null) {
 }
 
 // ---------------------------------------------------------------------
+// D-11 a D-13 -- L'ETAPE 'archivee' (BKL-CIN-092, lot "etape archivee",
+// 26/09/2026).
+// ---------------------------------------------------------------------
+// CE QU'ELLES MESURENT :
+//   D-11 la vue de supabase/08-etape-archivee.sql -- l'instruction JOUEE,
+//        pas celle du retour arriere en commentaire -- porte
+//        "where statut <> 'archivee'", et ses colonnes sont EXACTEMENT
+//        celles de 07, dans le MEME ordre (sans quoi le 'create or
+//        replace' serait refuse, ou la file publique changerait) ;
+//   D-12 la table des transitions de la page privee ne propose 'archivee'
+//        QUE depuis 'mise_de_cote' -- jamais depuis 'traitee' (decision
+//        d'AH du 26/09) --, 'archivee' n'a AUCUNE sortie, le PATCH vers
+//        elle pose les DEUX adresses a NUL, et la liste de CREATION ne
+//        l'offre pas (decision d'AH du 26/09, elicitation) ;
+//   D-13 file.html ne cite 'archivee' sous AUCUNE forme : c'est la vue qui
+//        retire ces lignes, la page publique ne change pas.
+// ELLES NE MESURENT PAS : ce que la BASE refuse ou rend -- c'est P-9 (a),
+// (b), (c) de 02, jouees par AH.
+const CHEMIN_SQL_ARCHIVEE = 'supabase/08-etape-archivee.sql';
+const ETAPE_ARCHIVEE = 'archivee';
+const sourceSqlArch = lireFichier(CHEMIN_SQL_ARCHIVEE);
+
+// L'instruction de vue EN DEBUT DE LIGNE : celle du retour arriere est
+// precedee de '-- ' et n'est donc pas prise.
+function vueJouee(t) {
+  if (t === null) return null;
+  const m = /^create or replace view public\.demandes_publiques as\s*\nselect ([\s\S]*?)\n\s*from public\.demandes\b([^;]*);/m.exec(t);
+  if (!m) return null;
+  return {
+    colonnes: m[1].split(',').map((s) => s.trim()).filter((s) => s.length > 0),
+    suite: m[2].replace(/\s+/g, ' ').trim()
+  };
+}
+
+// D-11 -- LA VUE DE 08.
+const vue08 = vueJouee(sourceSqlArch);
+const vue07 = vueJouee(sourceSqlProd);
+mesureD("D-11 la vue de 08 porte where statut <> 'archivee'",
+        vue08 !== null && vue08.suite === "where statut <> '" + ETAPE_ARCHIVEE + "'",
+        vue08 === null ? 'instruction de vue INTROUVABLE dans 08'
+                       : 'clause lue : ' + JSON.stringify(vue08.suite));
+const memesColonnes = vue08 !== null && vue07 !== null &&
+  vue08.colonnes.length === 12 &&
+  vue08.colonnes.join(',') === vue07.colonnes.join(',');
+mesureD('D-11 les colonnes de la vue de 08 sont celles de 07, dans le meme ordre (12)',
+        memesColonnes,
+        vue08 === null || vue07 === null ? 'vue de 07 ou de 08 INTROUVABLE'
+          : vue08.colonnes.length + ' colonne(s) : ' + vue08.colonnes.join(', ') +
+            (memesColonnes ? '' : ' -- 07 : ' + vue07.colonnes.join(', ')));
+
+// D-12 -- LA TABLE DES TRANSITIONS, LE PATCH ET LA CREATION, DANS admin.html.
+if (sourceAdmin === null) {
+  mesureD("D-12 l etape 'archivee' dans la page privee", false, 'admin.html introuvable');
+} else {
+  const mTable = /var TRANSITIONS = \{([\s\S]*?)\};/.exec(sourceAdmin);
+  const origines = [];
+  if (mTable) {
+    const reLigne = /(\w+)\s*:\s*\[([^\]]*)\]/g;
+    let l;
+    while ((l = reLigne.exec(mTable[1])) !== null) {
+      const cibles = l[2].split(',').map((s) => s.trim().replace(/^'/, '').replace(/'$/, ''))
+                         .filter((s) => s.length > 0);
+      origines.push([l[1], cibles]);
+    }
+  }
+  const versArchivee = origines.filter(([, c]) => c.indexOf(ETAPE_ARCHIVEE) >= 0).map(([o]) => o);
+  mesureD("D-12 'archivee' n est proposee QUE depuis mise_de_cote (jamais depuis traitee)",
+          mTable !== null && versArchivee.length === 1 && versArchivee[0] === 'mise_de_cote',
+          mTable === null ? 'table INTROUVABLE'
+                          : 'origines vers archivee : [' + versArchivee.join(', ') + ']');
+
+  const sortiesArch = origines.find(([o]) => o === ETAPE_ARCHIVEE);
+  const sortiesTraitee = origines.find(([o]) => o === 'traitee');
+  mesureD("D-12 'archivee' et 'traitee' n ont AUCUNE sortie",
+          sortiesArch !== undefined && sortiesArch[1].length === 0 &&
+          sortiesTraitee !== undefined && sortiesTraitee[1].length === 0,
+          'archivee -> ' + (sortiesArch ? '[' + sortiesArch[1].join(', ') + ']' : 'ABSENTE') +
+          ' ; traitee -> ' + (sortiesTraitee ? '[' + sortiesTraitee[1].join(', ') + ']' : 'ABSENTE'));
+
+  const iPatch = sourceAdmin.indexOf('if (cible === ETAPE_ARCHIVEE) {\n      corps.page_pilote = null;');
+  const blocPatch = iPatch === -1 ? '' : sourceAdmin.slice(iPatch, iPatch + 160);
+  const exigencesArch = [
+    ["var ETAPE_ARCHIVEE = '" + ETAPE_ARCHIVEE + "';", 'l etape est nommee une fois'],
+    ["cle: '" + ETAPE_ARCHIVEE + "'", 'l etape a sa rubrique'],
+    ['if (ETAPES[i].cle === ETAPE_ARCHIVEE) continue;', 'la creation ne l offre pas']
+  ];
+  const absentesArch = exigencesArch.filter(([motif]) => sourceAdmin.indexOf(motif) === -1)
+                                    .map(([, nom]) => nom);
+  const patchDeuxNuls = blocPatch.indexOf('corps.page_pilote = null;') !== -1 &&
+                        blocPatch.indexOf('corps.page_production = null;') !== -1;
+  mesureD("D-12 le PATCH vers 'archivee' pose les DEUX adresses a NUL ; rubrique ; pas de creation directe",
+          patchDeuxNuls && absentesArch.length === 0,
+          (patchDeuxNuls ? 'PATCH : deux NUL' : 'PATCH : les deux NUL ABSENTS') +
+          (absentesArch.length ? ' ; manque : ' + absentesArch.join(', ')
+                               : ' ; constante + rubrique + creation exclue'));
+}
+
+// D-13 -- file.html NE CITE PAS 'archivee'. Recherche LARGE, insensible a
+// la casse, sur la racine 'archiv' : ni la cle, ni un libelle "Archivees",
+// ni un commentaire. Une mention, et quelqu'un aurait commence a la
+// traiter cote public -- ce que ce lot exclut.
+if (sourceFile === null) {
+  mesureD("D-13 file.html ne cite pas 'archivee'", false, 'file.html introuvable');
+} else {
+  const citations = (sourceFile.match(/archiv/gi) || []).length;
+  mesureD("D-13 file.html ne cite pas 'archivee' (c est la vue qui retire ces lignes)",
+          citations === 0, citations + " occurrence(s) de 'archiv' (casse ignoree)");
+}
+
+// ---------------------------------------------------------------------
 
 console.log('');
 console.log('  TOTAL : ' + totalBrut + ' occurrence(s) brute(s) de vrais motifs de secret, ' +
             (totalValorise + motsDePasse) + ' valorisee(s) (secrets reels + mots de passe) ; ' +
             'passe C (' + PAGES_SERVIES.join(' + ') + ') ' + (passeC ? 'CONFORME' : 'NON CONFORME') +
-            ' ; passe D (lot S bis + adresse de production) ' + (passeD ? 'CONFORME' : 'NON CONFORME') + '.');
+            ' ; passe D (lot S bis + adresse de production + etape archivee) ' + (passeD ? 'CONFORME' : 'NON CONFORME') + '.');
 
 const vert = totalValorise === 0 && motsDePasse === 0 && passeC && passeD && manquants.length === 0;
 console.log(vert
