@@ -1,6 +1,6 @@
 ﻿# Test en ligne — « Demander une analyse » (fiche A)
 
-**Tes vingt-et-un gestes, tels qu'exécutés.** Le service tourne en
+**Tes vingt-quatre gestes, tels qu'exécutés.** Le service tourne en
 production depuis le 25/08/2026 (08h19) sous
 **https://demande.cdatso.be**. Ce guide reste la référence de ces gestes —
 utile pour un redéploiement à neuf ou un audit, pas pour une mise en ligne
@@ -8,7 +8,9 @@ restant à faire.
 *Gestes ① à ⑫ : le service public. Gestes ⑬ à ⑯ : la page privée
 d'administration, ajoutée le 18/09/2026 (BKL-CIN-096 lot 2). Gestes ⑰ à
 ㉑ : la huitième étape `publiee_pilote` et l'adresse de la page d'essai,
-ajoutées le 19/09/2026 (BKL-CIN-098 lot S et lot S bis).*
+ajoutées le 19/09/2026 (BKL-CIN-098 lot S et lot S bis). Gestes ㉒ à ㉔ :
+l'adresse de PRODUCTION sur les cartes « Traitées », ajoutée le 26/09/2026
+(BKL-CIN-099).*
 
 **La borne, avant tout** : la clé de l'API Claude et la clé **secrète**
 Supabase ne sortent **jamais** des variables d'environnement. Seule la clé
@@ -334,6 +336,83 @@ automatique »**, **« Traitées » n'est plus proposé** (décision d'AH du
 > **publiable** par la chaîne si l'interrupteur vaut `ACTIF`. Pour une
 > demande d'essai que tu ne veux **pas** voir publiée, vérifie
 > l'interrupteur **avant**.
+
+---
+
+## L'adresse de production sur les cartes « Traitées » (BKL-CIN-099, 26/09/2026)
+
+*Gestes ㉒ à ㉔. Même règle qu'au-dessus : **chaque geste est nommé par son
+FICHIER ou par son BOUTON**, et les deux règles « avant de cliquer » valent
+ici aussi — `supabase/03-droits-vue-publique.sql` ne se rejoue **jamais** ; un
+bloc qui porte `create temporary table` se joue par **« Run without RLS »**.*
+
+> **Les épreuves de `02` sont EN COMMENTAIRE** (chaque ligne commence par
+> `-- `), comme P-1 à P-5. « Le bloc décommenté » veut dire : le bloc
+> **sans** ses `-- `, collé dans un onglet neuf du *SQL Editor*. Le
+> 26/09, chaque bloc a été remis **prêt à coller** — c'est la façon la
+> plus sûre de le jouer tel qu'il est écrit.
+
+**㉒ `supabase/07-page-production.sql` — joué le 26/09/2026.** Il a posé la
+colonne `page_production` et ses deux bornes — **forme** (une page de films
+de `https://www.cdatso.be/analyses-de-films/films/`, rien d'autre) et
+**cohérence** (une adresse ⇒ `traitee` ; une `traitee` **peut** rester
+sans adresse) —, la vue publique à **douze** colonnes (`page_production`
+en dernier), le droit d'écrire les **trois** colonnes `statut`,
+`page_pilote`, `page_production` depuis la page privée, et il a **ouvert
+le journal au geste `adresse`** : tout changement d'adresse — de
+production **ou** d'essai — y laisse sa ligne, `avant` et `apres` sous la
+forme `<colonne> : <valeur>`, `(nulle)` tenant lieu de NUL ; étape **et**
+adresse changées ensemble ⇒ **deux** lignes. L'ordre des gestes est écrit
+en tête du fichier : **la base d'abord, les pages ensuite, R-2 en
+dernier.** Puis :
+
+- `supabase/02-controles-demandes.sql` en entier : **31 lignes** depuis le
+  26/09/2026 (n°4, 12, 14, 21, 23 amendés ; n°25 à 30 neufs). Trois
+  informatives : n°6, n°9 et **n°30** (« traitées sans adresse de
+  production » : 4 avant R-2, **0** après). *Les « 25 lignes » des gestes
+  ⑩, ⑭ et ⑱ décrivent l'état du 19/09.*
+- les épreuves **P-6 (a)**, **P-6 (b)**, **P-7**, **P-8**, puis **P-5
+  rejouée**, en bas de `02`, **un bloc à la fois** :
+
+| | Ce qu'elle prouve |
+|---|---|
+| **P-6 (a)** | l'expression de production juge bien 14 cas, dont 12 hostiles : l'adresse du **pilote**, la forme **sans `www`**, le **saut de ligne final**, les points non échappés — tous refusés |
+| **P-6 (b)** | la contrainte de forme est **attachée** à la colonne, et elle refuse |
+| **P-7** | la cohérence mord (3 refus) **et laisse travailler** (3 passages, dont une `traitee` sans adresse) |
+| **P-8** | le journal écrit le geste `adresse` : deux lignes pour étape + adresse, une pour l'adresse seule, `(nulle)` vers NUL, rien quand rien ne change |
+| **P-5** | le journal reste **figé** et écrit encore |
+
+**㉓ La section `R-2` de `supabase/07-page-production.sql`** — en
+commentaire, **une seule fois**, et **après** que les pages portant le lien
+de production sont déployées et constatées. Elle donne leur adresse aux
+**quatre** demandes déjà traitées (n°2, n°3, n°5, n°37 — liste confirmée
+une à une le 26/09). Joue ses blocs **(a)**, **(b)**, **(c)** dans
+l'ordre où elle les écrit : `4 lignes / traitee / page_production NUL`,
+puis **4 lignes** rendues par l'`update`, chacune avec **son** adresse,
+puis la relecture et **quatre** lignes de journal `adresse` à `par`
+**nul** — attendu : le tableau de bord n'est pas un compte authentifié.
+Puis `02` une seconde fois : le **n°30 rend 0**.
+
+**㉔ Ton geste courant, depuis `admin.html` — ranger en « Traitées ».**
+Quand une analyse est publiée au site :
+
+1. sur la carte de la demande (« À traiter » ou « Publiées à l'essai (non
+   relues) »), choisis **« Traitées »** puis **« Changer l'étape »** ;
+2. la confirmation demande l'**adresse de l'analyse au site** — elle est
+   **obligatoire** : colle-la. Forme admise, vérifiée **avant l'envoi** :
+   `https://www.cdatso.be/analyses-de-films/films/<nom-du-film>.html` —
+   **avec `www`**, minuscules, chiffres, tirets simples, `.html`, rien
+   après. Vide ou hors forme, **rien ne part** ; et si elle partait, la
+   base la refuserait ;
+3. **« Confirmer »**. Le message d'après-coup affiche l'adresse **telle que
+   la base la rend**, et **« Lire l'analyse »** apparaît sur la carte, dans
+   la rubrique « Traitées » de `file.html`.
+
+**« Traitées » n'a toujours aucune sortie** : vérifie l'adresse avant de
+confirmer — une erreur ne se corrige qu'au *Table Editor* (et y laisse,
+elle aussi, sa ligne `adresse` au journal). Depuis « Publiées à l'essai »,
+l'adresse d'**essai** reste en base (mémoire de l'adoption), mais la carte
+« Traitées » ne lie **que** la page du site.
 
 ---
 ---

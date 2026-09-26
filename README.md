@@ -78,6 +78,19 @@ file.html  --GET-->  vue public.demandes_publiques (clé publiable, lecture seul
   ne doit jamais pouvoir être arbitraire. Le risque assumé est nommé au
   **RISKLOG R-030** ; l'arbitrage A6 (« surface pilote non liée ») est
   **amendé** par la décision d'AH du 19/09.
+- **Depuis le 26/09/2026, chaque carte « Traitées » peut porter le lien
+  vers son analyse au site — « Lire l'analyse ».** La colonne
+  `page_production` (script `supabase/07-page-production.sql`,
+  BKL-CIN-099) suit exactement le modèle de `page_pilote` : l'adresse est
+  **posée par AH seul** — depuis la page privée au passage vers
+  « Traitées », où le champ est **obligatoire**, ou, pour les demandes déjà
+  traitées, par le bloc `R-2` joué une fois ; elle est **bornée en base**
+  en forme (une page de films de
+  `https://www.cdatso.be/analyses-de-films/films/`, avec `www`, rien
+  d'autre) et en cohérence (une adresse n'existe que sur une `traitee`) ;
+  et `file.html` **rejoue la même expression** avant de créer le lien. Le
+  **journal** trace désormais aussi chaque changement d'adresse (geste
+  `adresse`, pour `page_production` comme pour `page_pilote`).
 
 ### Ce qui n'est PAS dans le périmètre, et qui est déclaré
 
@@ -154,6 +167,18 @@ des sorties de `publication_pilote` ; reste-t-il **zéro** `innerHTML`. Elle
 a été **prouvée capable d'être rouge** dans une copie jetable — un
 caractère ôté à l'expression, un `innerHTML` glissé, une classe de slug
 ouverte aux majuscules : trois fois `exit 1`.
+
+Le 26/09/2026 (BKL-CIN-099), la passe D a été **étendue à l'adresse de
+production** (D-7 à D-10) : même expression **aux trois endroits**
+(`07`, `file.html`, `admin.html`) ; les **quatorze** cas de l'épreuve P-6
+(a) jugés en JavaScript ; lien « Lire l'analyse » créé sous **double
+garde** ; champ de la page privée posé **depuis les deux chemins** vers
+« Traitées », refusé **vide**, éprouvé **avant l'envoi** — et `traitee`
+toujours **sans sortie**. Le contrôle D-3 attend désormais **deux** liens
+gardés dans la file, et non plus un. Prouvée capable d'être rouge dans
+des copies jetables : six mutations, six `exit 1` — dont une classe de
+slug ouverte aux majuscules **aux trois endroits à la fois**, que seul le
+jugement en comportement (D-8) voit.
 
 ## Coût, chiffré après les bornes
 
