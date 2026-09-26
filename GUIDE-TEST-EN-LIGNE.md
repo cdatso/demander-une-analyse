@@ -226,6 +226,9 @@ après).
 > aucun script n'en ajoute. L'**indice** — pas la preuve — est ailleurs :
 > une création par `qualifier.mjs` porte une `qualification` JSON et un
 > `motif` ; un geste du tableau de bord, en général, ni l'un ni l'autre.
+> L'état de cette qualification se lit sur la page privée, dans chaque
+> carte, sous la ligne du réalisateur : « Qualification par le modèle — »
+> suivi de l'état, puis la cause.
 
 > Le courrier intégré de Supabase est **plafonné à quelques envois par
 > heure** : ne redemande pas un lien en rafale. La session vit dans
