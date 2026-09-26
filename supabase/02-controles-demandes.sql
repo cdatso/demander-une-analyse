@@ -7,7 +7,8 @@
 -- FORME CONSOLIDEE, reprise de FOR-003 (02-controles.sql, gate AH du
 -- 20/08/2026) et de FOR-004 : le SQL Editor de Supabase n'affiche que le
 -- resultat de la DERNIERE requete d'un script. Une requete par controle
--- n'afficherait donc que le dernier. Les VINGT-CINQ controles rendent ici
+-- n'afficherait donc que le dernier. Les TRENTE-ET-UN controles (vingt-cinq
+-- jusqu'au 26/09/2026, voir l'historique) rendent ici
 -- UN SEUL tableau -- colonnes ordre / controle / mesure / attendu -- et
 -- chaque controle porte AUSSI son attendu en commentaire, juste au-dessus
 -- de sa ligne, comme l'exige le mandat.
@@ -18,7 +19,17 @@
 -- controles neufs (n.13 a n.18) pour la page privee ; VINGT-CINQ au lot S
 -- de BKL-CIN-098, le 19/09/2026 -- les n.4, n.7, n.12 et n.14 AMENDES par
 -- la huitieme etape et la colonne page_pilote, et SIX controles neufs
--- (n.19 a n.24) pour l'adresse de page d'essai et pour le journal fige.
+-- (n.19 a n.24) pour l'adresse de page d'essai et pour le journal fige ;
+-- TRENTE-ET-UN a BKL-CIN-099, le 26/09/2026 -- les n.4, 12, 14, 21 et 23
+-- AMENDES par la colonne page_production (decision d'AH du 26/09,
+-- verbatim : "Amender en place"), et SIX controles neufs (n.25 a n.30)
+-- pour l'adresse de production et pour le journal ouvert au geste
+-- 'adresse'.
+--
+-- LES CONTROLES 25 A 30, ET LES AMENDEMENTS DU 26/09/2026 DES N.4, 12,
+-- 14, 21 ET 23, SUPPOSENT QUE 07-page-production.sql A ETE JOUE. Avant
+-- lui, le n.4 rend '11 / 13', le n.14 '7 / 0' -- et les n.25 a 29 sont
+-- rouges ou vides : ce n'est pas une panne, c'est l'ordre des gestes.
 --
 -- LES CONTROLES 19 A 24, ET LES AMENDEMENTS DES N.4, 7, 12 ET 14,
 -- SUPPOSENT QUE 06-statut-publiee-pilote.sql A ETE JOUE. Avant lui, le
@@ -105,12 +116,17 @@ select 4,
        -- PATRON : un controle dont l'attendu a change reste rouge, et il
        -- cesse d'etre un detecteur).
        -- mail et motif restent hors de la vue : c'est le controle n.3.
+       -- AMENDE LE 26/09/2026 (BKL-CIN-099, 07-page-production.sql ;
+       -- decision d'AH du jour, verbatim : "Amender en place") : l'attendu
+       -- etait '11 / 13'. La colonne 'page_production' ajoute UN champ des
+       -- DEUX cotes -- la vue l'expose, en DOUZIEME et derniere position
+       -- (controles n.21 et n.26).
        (select count(*)::text from information_schema.columns
          where table_schema = 'public' and table_name = 'demandes_publiques')
        || ' / ' ||
        (select count(*)::text from information_schema.columns
          where table_schema = 'public' and table_name = 'demandes'),
-       '11 / 13'
+       '12 / 14'
 
 union all
 select 5,
@@ -266,6 +282,8 @@ select 12,
        --       'update (page_pilote)'. Sans cet amendement, (iii) aurait
        --       compte une paire "en trop" et ce controle serait devenu
        --       ROUGE PAR CONSTRUCTION (regle S-6 du PATRON).
+       --       AMENDE LE 26/09/2026 (BKL-CIN-099) : de SEPT a HUIT paires
+       --       -- 07 ajoute 'update (page_production)'. Meme raison.
        -- (iv)  authenticated detient SELECT sur la table -> true (sans
        --       lui, la page privee n'affiche rien).
        -- (v)   anon garde SELECT sur la vue -> true (sans lui, file.html
@@ -311,13 +329,15 @@ select 12,
              (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
                      ('annee', 'INSERT'), ('statut', 'INSERT'),
                      ('decideur', 'INSERT'), ('statut', 'UPDATE'),
-                     ('page_pilote', 'UPDATE'))) as en_trop)
+                     ('page_pilote', 'UPDATE'),
+                     ('page_production', 'UPDATE'))) as en_trop)
           +
           (select count(*) from (
              (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
                      ('annee', 'INSERT'), ('statut', 'INSERT'),
                      ('decideur', 'INSERT'), ('statut', 'UPDATE'),
-                     ('page_pilote', 'UPDATE'))
+                     ('page_pilote', 'UPDATE'),
+                     ('page_production', 'UPDATE'))
              except
              (select c.column_name::text, p.privilege::text
                 from information_schema.columns c
@@ -352,7 +372,7 @@ select 13,
 
 union all
 select 14,
-       'authenticated : les SEPT droits de colonne accordes, et rien d autre',
+       'authenticated : les HUIT droits de colonne accordes, et rien d autre',
        -- attendu : 7 / 0 (BKL-CIN-096 (b) lot 2, 18/09/2026 -- controle
        -- NEUF ; AMENDE de 6 a 7 le 19/09/2026, BKL-CIN-098 lot S).
        -- C'est le "que" de la posture, rendu lisible :
@@ -368,11 +388,18 @@ select 14,
        --     la borne "la page ne change QUE l etape et l adresse" tombe.
        -- Le n.12 (iii) agrege ces deux nombres ; celui-ci les separe, pour
        -- qu'un rouge dise TOUT DE SUITE de quel cote il penche.
+       -- AMENDE LE 26/09/2026 (BKL-CIN-099, decision d'AH du jour,
+       -- verbatim : "Amender en place") : de SEPT a HUIT paires, et
+       -- l'attendu de '7 / 0' a '8 / 0'. 07-page-production.sql accorde
+       -- 'update (page_production)' : sans elle, le PATCH de la page
+       -- privee vers 'traitee' -- l'etape ET l'adresse -- serait refuse en
+       -- entier. Le libelle passe de SEPT a HUIT pour la meme raison.
        (select count(*)::text
           from (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
                        ('annee', 'INSERT'), ('statut', 'INSERT'),
                        ('decideur', 'INSERT'), ('statut', 'UPDATE'),
-                       ('page_pilote', 'UPDATE')) as a(colonne, privilege)
+                       ('page_pilote', 'UPDATE'),
+                       ('page_production', 'UPDATE')) as a(colonne, privilege)
          where has_column_privilege('authenticated'::name, 'public.demandes',
                                     a.colonne, a.privilege))
        || ' / ' ||
@@ -387,8 +414,9 @@ select 14,
           (values ('titre', 'INSERT'), ('realisateur', 'INSERT'),
                   ('annee', 'INSERT'), ('statut', 'INSERT'),
                   ('decideur', 'INSERT'), ('statut', 'UPDATE'),
-                  ('page_pilote', 'UPDATE'))) as en_trop),
-       '7 / 0'
+                  ('page_pilote', 'UPDATE'),
+                  ('page_production', 'UPDATE'))) as en_trop),
+       '8 / 0'
 
 union all
 select 15,
@@ -572,7 +600,7 @@ select 20,
 
 union all
 select 21,
-       'la vue expose page_pilote, et EN DERNIER',
+       'la vue : nombre de colonnes / la DERNIERE',
        -- attendu : 11 / page_pilote (BKL-CIN-098 lot S, 19/09/2026 --
        -- controle NEUF).
        -- EXPOSEE : sans elle dans la vue, file.html -- qui lit la vue
@@ -584,13 +612,19 @@ select 21,
        -- preuve que la vue a ete REMPLACEE et non DETRUITE puis recreee
        -- -- et un objet recree naitrait avec les droits par defaut du
        -- schema public (R-023). Cette ligne mesure cela aussi.
+       -- AMENDE LE 26/09/2026 (BKL-CIN-099, decision d'AH du jour,
+       -- verbatim : "Amender en place") : l'attendu etait
+       -- '11 / page_pilote', et le libelle "la vue expose page_pilote, et
+       -- EN DERNIER". 07-page-production.sql ajoute 'page_production' en
+       -- DOUZIEME et derniere position ; page_pilote reste exposee, en
+       -- ONZIEME -- c'est ce que le controle n.26 mesure, par position.
        (select count(*)::text from information_schema.columns
          where table_schema = 'public' and table_name = 'demandes_publiques')
        || ' / ' ||
        coalesce((select column_name from information_schema.columns
                   where table_schema = 'public' and table_name = 'demandes_publiques'
                   order by ordinal_position desc limit 1), '(aucune)'),
-       '11 / page_pilote'
+       '12 / page_production'
 
 union all
 select 22,
@@ -626,7 +660,7 @@ select 22,
 
 union all
 select 23,
-       'authenticated : UPDATE sur statut ET page_pilote, et sur rien d autre',
+       'authenticated : UPDATE sur statut, page_pilote ET page_production, et sur rien d autre',
        -- attendu : 2 | page_pilote, statut (BKL-CIN-098 lot S,
        -- 19/09/2026 -- controle NEUF).
        -- CE QU IL AJOUTE AU N.14 : les NOMS. Le n.14 compte des paires
@@ -638,6 +672,13 @@ select 23,
        -- mail, ni le decideur, ni slug_existant. Une colonne de plus
        -- ici, et la borne "la page ne change QUE l etape et l adresse"
        -- tombe -- sans qu aucun autre controle ne le dise.
+       -- AMENDE LE 26/09/2026 (BKL-CIN-099, decision d'AH du jour,
+       -- verbatim : "Amender en place") : TROIS, et non plus deux --
+       -- 07-page-production.sql accorde 'update (page_production)', que la
+       -- page privee pose au passage vers 'traitee'. L'attendu etait
+       -- '2 | page_pilote, statut', le libelle "UPDATE sur statut ET
+       -- page_pilote". La borne devient "la page ne change QUE l etape et
+       -- les deux adresses" -- toujours pas un champ de plus.
        (select count(*)::text
           from information_schema.columns c
          where c.table_schema = 'public' and c.table_name = 'demandes'
@@ -649,7 +690,7 @@ select 23,
                   where c.table_schema = 'public' and c.table_name = 'demandes'
                     and has_column_privilege('authenticated'::name, 'public.demandes',
                                              c.column_name::text, 'UPDATE')), '(aucune)'),
-       '2 | page_pilote, statut'
+       '3 | page_pilote, page_production, statut'
 
 union all
 select 24,
@@ -679,6 +720,126 @@ select 24,
                   where tgrelid = 'public.demandes_journal'::regclass
                     and not tgisinternal), '(aucun)'),
        '2 | demandes_journal_fige_instruction_trg, demandes_journal_fige_ligne_trg'
+
+union all
+select 25,
+       'colonne page_production : existe / type / nullable',
+       -- attendu : 1 / text / YES (BKL-CIN-099, 26/09/2026 -- controle
+       -- NEUF). L'adresse de la page de l'analyse sur le site de
+       -- PRODUCTION. 'text' : c'est la FORME qui borne (n.27), pas la
+       -- taille. 'YES' : NUL est l etat normal -- et une 'traitee' PEUT
+       -- rester sans adresse (borne de coherence a SENS UNIQUE).
+       -- NE PAS CONFONDRE avec slug_existant ("deja analyse EN PRODUCTION
+       -- au moment de la demande") ni avec page_pilote (la page d essai).
+       coalesce((select '1 / ' || data_type || ' / ' || is_nullable
+                   from information_schema.columns
+                  where table_schema = 'public' and table_name = 'demandes'
+                    and column_name = 'page_production'), '0 / (absente) / (absente)'),
+       '1 / text / YES'
+
+union all
+select 26,
+       'la vue : position de page_pilote / de page_production',
+       -- attendu : 11 / 12 (BKL-CIN-099, 26/09/2026 -- controle NEUF).
+       -- CE QUE LE N.21 NE DIT PLUS : depuis 07, page_pilote n est plus
+       -- la derniere colonne. Ce controle mesure les DEUX positions :
+       -- page_pilote reste en ONZIEME (le 'create or replace view' a garde
+       -- l ORDRE des colonnes existantes -- preuve que la vue a ete
+       -- REMPLACEE et non detruite puis recreee, R-023), et
+       -- page_production est en DOUZIEME. '0' a la place d une position
+       -- = la colonne n est pas exposee.
+       coalesce((select ordinal_position::text from information_schema.columns
+                  where table_schema = 'public' and table_name = 'demandes_publiques'
+                    and column_name = 'page_pilote'), '0')
+       || ' / ' ||
+       coalesce((select ordinal_position::text from information_schema.columns
+                  where table_schema = 'public' and table_name = 'demandes_publiques'
+                    and column_name = 'page_production'), '0'),
+       '11 / 12'
+
+union all
+select 27,
+       'les DEUX contraintes de page_production',
+       -- attendu : 2 | demandes_page_production_coherence_check,
+       --               demandes_page_production_forme_check
+       -- (BKL-CIN-099, 26/09/2026 -- controle NEUF.)
+       -- FORME : l adresse est nulle, ou elle appartient exactement a
+       -- https://www.cdatso.be/analyses-de-films/films/<slug>.html.
+       -- COHERENCE : adresse non nulle => statut 'traitee' (sens unique).
+       -- CONTROLE D EXISTENCE seulement : que les deux MORDENT, c est ce
+       -- que prouvent les epreuves P-6 et P-7, en bas de ce fichier.
+       (select count(*)::text from pg_constraint
+         where conrelid = 'public.demandes'::regclass
+           and conname in ('demandes_page_production_forme_check',
+                           'demandes_page_production_coherence_check'))
+       || ' | ' ||
+       coalesce((select string_agg(conname, ', ' order by conname)
+                   from pg_constraint
+                  where conrelid = 'public.demandes'::regclass
+                    and conname in ('demandes_page_production_forme_check',
+                                    'demandes_page_production_coherence_check')), '(aucune)'),
+       '2 | demandes_page_production_coherence_check, demandes_page_production_forme_check'
+
+union all
+select 28,
+       'demandes_journal : contraintes sur geste / adresse admise',
+       -- attendu : 1 / true (BKL-CIN-099, 26/09/2026 -- controle NEUF).
+       -- (i)  avant la barre : combien de contraintes CHECK du journal
+       --      portent sur 'geste' -> 1. Deux, et l ANCIENNE liste fermee
+       --      (creation, etape) serait restee a cote de la neuve : toute
+       --      ligne 'adresse' serait refusee, le declencheur echouerait,
+       --      et la page privee ne pourrait plus rien poser.
+       -- (ii) apres la barre : cette contrainte admet-elle 'adresse' ET
+       --      toujours 'creation' et 'etape' -> true.
+       -- CONTROLE DE MENTION : il lit la definition. Que le journal
+       -- ECRIVE bien une ligne 'adresse', c est l epreuve P-8.
+       (select count(*)::text from pg_constraint
+         where conrelid = 'public.demandes_journal'::regclass
+           and contype = 'c'
+           and pg_get_constraintdef(oid) like '%geste%')
+       || ' / ' ||
+       coalesce((select bool_and(pg_get_constraintdef(oid) like '%''adresse''%'
+                                 and pg_get_constraintdef(oid) like '%''creation''%'
+                                 and pg_get_constraintdef(oid) like '%''etape''%')::text
+                   from pg_constraint
+                  where conrelid = 'public.demandes_journal'::regclass
+                    and contype = 'c'
+                    and pg_get_constraintdef(oid) like '%geste%'), '(aucune)'),
+       '1 / true'
+
+union all
+select 29,
+       'fonction de journal : branche adresse, deux colonnes, NUL ecrit (nulle)',
+       -- attendu : true (BKL-CIN-099, 26/09/2026 -- controle NEUF).
+       -- Il lit le TEXTE de prive.journaliser_demande() : elle nomme le
+       -- geste 'adresse', les DEUX colonnes (page_pilote, page_production),
+       -- et le marqueur '(nulle)' -- sans lui, une adresse remise a NUL
+       -- violerait 'apres not null', le declencheur echouerait, et
+       -- l'update qui l appelle avec lui (decision E3 d AH du 26/09).
+       -- CONTROLE DE MENTION, comme le n.18 : la mesure de VALEUR est
+       -- l epreuve P-8.
+       coalesce((select (pg_get_functiondef(p.oid) like '%''adresse''%'
+                         and pg_get_functiondef(p.oid) like '%page_production%'
+                         and pg_get_functiondef(p.oid) like '%page_pilote%'
+                         and pg_get_functiondef(p.oid) like '%(nulle)%')::text
+                   from pg_proc p
+                   join pg_namespace n on n.oid = p.pronamespace
+                  where n.nspname = 'prive' and p.proname = 'journaliser_demande'), '(absente)'),
+       'true'
+
+union all
+select 30,
+       'demandes traitees SANS adresse de production',
+       -- attendu : informatif (BKL-CIN-099, 26/09/2026 -- controle NEUF).
+       -- La borne de coherence est a SENS UNIQUE : une 'traitee' PEUT
+       -- etre sans adresse. Ce nombre n est donc pas un defaut, il se LIT :
+       -- 4 entre 07 et le bloc R-2 (n.2, n.3, n.5, n.37) ; 0 apres R-2 ;
+       -- et il ne remonte que si une demande entre en 'traitee' sans
+       -- adresse -- ce que la page privee refuse (champ obligatoire,
+       -- decision d AH du 26/09), mais pas le Table Editor.
+       (select count(*)::text from public.demandes
+         where statut = 'traitee' and page_production is null),
+       'informatif -- 0 apres le bloc R-2 de 07'
 
 order by ordre;
 
@@ -1287,4 +1448,350 @@ order by ordre;
 -- SI UNE SEULE LIGNE DE P-3, P-4 OU P-5 REND '>>> ECART <<<' : la borne
 -- correspondante ne fait pas ce qu'elle annonce. ARRET, et on le signale
 -- -- on ne "reessaie" pas, et on ne passe pas a la suite.
+-- ---------------------------------------------------------------------
+
+-- =====================================================================
+-- P-6, P-7, P-8 -- LES EPREUVES DE L'ADRESSE DE PRODUCTION. BKL-CIN-099,
+-- 26/09/2026. A jouer SEPAREMENT par AH, UN BLOC A LA FOIS : selectionner
+-- le bloc decommente, puis "Run without RLS" -- JAMAIS "Run and enable
+-- RLS" (voir "LE DIALOGUE DE SUPABASE", plus haut, avant P-3).
+-- PUIS REJOUER P-5 : le journal ouvert au geste 'adresse' doit rester
+-- FIGE, et ecrire encore.
+-- =====================================================================
+--
+-- POURQUOI, COMME POUR P-3 A P-5 : les controles n.25 a 29 lisent le
+-- catalogue. Une contrainte presente a l'expression fautive, une
+-- fonction qui nomme 'adresse' sans jamais l'ecrire, les laisseraient
+-- VERTS. Une garde se prouve des DEUX cotes : ce qu'elle laisse passer,
+-- ET ce qu'elle refuse.
+--
+-- MEMES PRECAUTIONS : une transaction terminee par 'rollback' ; un bloc
+-- 'do' dont chaque cas vit dans une SOUS-transaction ('begin ...
+-- exception'), pour qu'un refus attendu n'avorte pas la suite ; une
+-- table TEMPORAIRE qui accumule les verdicts ; un compte de restes a
+-- jouer APRES le rollback : attendu 0. L'editeur joue en 'postgres' :
+-- ces epreuves mesurent les CONTRAINTES et le DECLENCHEUR, pas les
+-- policies.
+--
+-- ---------------------------------------------------------------------
+-- P-6 (a) -- L'EXPRESSION DE FORME, LUE. Lecture pure, rien n'est ecrit.
+-- Quatorze cas, dont douze hostiles.
+-- ---------------------------------------------------------------------
+-- ATTENDU : quatorze lignes, 'jugement' a 'OK' partout.
+--
+-- LES CAS QUI COMPTENT LE PLUS : 03 (l'adresse du PILOTE -- la page
+-- d'essai n'est PAS la page de production), 05 (sans 'www' : le site
+-- n'ecrit jamais cette forme), 12 (le SAUT DE LIGNE final -- Python
+-- l'accepterait) et 14 (les points NON echappes : sans '\.', 'wwwX'
+-- passerait).
+--
+-- select cas,
+--        case when valeur ~ '^https://www\.cdatso\.be/analyses-de-films/films/[a-z0-9]+(-[a-z0-9]+)*\.html$'
+--             then 'ACCEPTEE' else 'REFUSEE' end as verdict,
+--        attendu,
+--        case when (case when valeur ~ '^https://www\.cdatso\.be/analyses-de-films/films/[a-z0-9]+(-[a-z0-9]+)*\.html$'
+--                        then 'ACCEPTEE' else 'REFUSEE' end) = attendu
+--             then 'OK' else '>>> ECART <<<' end as jugement,
+--        length(valeur) as longueur
+--   from (values
+--     ('01 adresse valide, slug compose', 'https://www.cdatso.be/analyses-de-films/films/le-chateau-ambulant.html', 'ACCEPTEE'),
+--     ('02 adresse valide, slug simple',  'https://www.cdatso.be/analyses-de-films/films/rose.html',               'ACCEPTEE'),
+--     ('03 adresse du PILOTE',            'https://pilote.cdatso.be/films/le-chateau-ambulant.html',                'REFUSEE'),
+--     ('04 http en clair',                'http://www.cdatso.be/analyses-de-films/films/rose.html',                'REFUSEE'),
+--     ('05 sans www',                     'https://cdatso.be/analyses-de-films/films/rose.html',                   'REFUSEE'),
+--     ('06 remontee de chemin',           'https://www.cdatso.be/analyses-de-films/films/../docs/secret.html',     'REFUSEE'),
+--     ('07 chaine de requete',            'https://www.cdatso.be/analyses-de-films/films/rose.html?x=1',           'REFUSEE'),
+--     ('08 majuscules dans le slug',      'https://www.cdatso.be/analyses-de-films/films/Le-Chateau.html',         'REFUSEE'),
+--     ('09 domaine-leurre en suffixe',    'https://www.cdatso.be.evil.be/analyses-de-films/films/rose.html',       'REFUSEE'),
+--     ('10 chemin hors films/',           'https://www.cdatso.be/analyses-de-films/docs/journal.html',             'REFUSEE'),
+--     ('11 fragment',                     'https://www.cdatso.be/analyses-de-films/films/rose.html#x',             'REFUSEE'),
+--     ('12 valide + SAUT DE LIGNE final', 'https://www.cdatso.be/analyses-de-films/films/rose.html' || chr(10),    'REFUSEE'),
+--     ('13 schema javascript',            'javascript:alert(1)',                                                   'REFUSEE'),
+--     ('14 points non echappes (leurre)', 'https://wwwXcdatsoYbe/analyses-de-films/films/rose.html',               'REFUSEE')
+--   ) as t(cas, valeur, attendu)
+--  order by cas;
+--
+-- ---------------------------------------------------------------------
+-- P-6 (b) -- LA CONTRAINTE DE FORME MORD. Transaction, puis rollback.
+-- ---------------------------------------------------------------------
+-- (a) prouve que l'EXPRESSION juge bien ; (b) prouve qu'elle est
+-- ATTACHEE a la colonne et qu'elle REFUSE.
+--
+-- ATTENDU : quatorze lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, le compte de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p6_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p6$
+-- declare
+--     v_id bigint;
+--     r    record;
+-- begin
+--     -- Une ligne d'appui, en 'traitee' : la borne de COHERENCE y admet
+--     -- une adresse, ce qui isole la borne de FORME.
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-6 forme -- A ROLLBACK', 'traitee', 'AH')
+--     returning id into v_id;
+--
+--     for r in
+--         select * from (values
+--           ('01 adresse valide, slug compose', 'https://www.cdatso.be/analyses-de-films/films/le-chateau-ambulant.html', 'ACCEPTEE'),
+--           ('02 adresse valide, slug simple',  'https://www.cdatso.be/analyses-de-films/films/rose.html',               'ACCEPTEE'),
+--           ('03 adresse du PILOTE',            'https://pilote.cdatso.be/films/le-chateau-ambulant.html',                'REFUSEE'),
+--           ('04 http en clair',                'http://www.cdatso.be/analyses-de-films/films/rose.html',                'REFUSEE'),
+--           ('05 sans www',                     'https://cdatso.be/analyses-de-films/films/rose.html',                   'REFUSEE'),
+--           ('06 remontee de chemin',           'https://www.cdatso.be/analyses-de-films/films/../docs/secret.html',     'REFUSEE'),
+--           ('07 chaine de requete',            'https://www.cdatso.be/analyses-de-films/films/rose.html?x=1',           'REFUSEE'),
+--           ('08 majuscules dans le slug',      'https://www.cdatso.be/analyses-de-films/films/Le-Chateau.html',         'REFUSEE'),
+--           ('09 domaine-leurre en suffixe',    'https://www.cdatso.be.evil.be/analyses-de-films/films/rose.html',       'REFUSEE'),
+--           ('10 chemin hors films/',           'https://www.cdatso.be/analyses-de-films/docs/journal.html',             'REFUSEE'),
+--           ('11 fragment',                     'https://www.cdatso.be/analyses-de-films/films/rose.html#x',             'REFUSEE'),
+--           ('12 valide + SAUT DE LIGNE final', 'https://www.cdatso.be/analyses-de-films/films/rose.html' || chr(10),    'REFUSEE'),
+--           ('13 schema javascript',            'javascript:alert(1)',                                                   'REFUSEE'),
+--           ('14 points non echappes (leurre)', 'https://wwwXcdatsoYbe/analyses-de-films/films/rose.html',               'REFUSEE')
+--         ) as t(cas, valeur, attendu)
+--     loop
+--         begin
+--             update public.demandes set page_production = r.valeur where id = v_id;
+--             insert into p6_resultats values (r.cas, 'ACCEPTEE', r.attendu);
+--         exception when check_violation then
+--             insert into p6_resultats values (r.cas, 'REFUSEE', r.attendu);
+--         end;
+--     end loop;
+-- end
+-- $p6$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p6_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0.
+--
+-- select count(*) as restes
+--   from public.demandes
+--  where titre like 'P-6 %A ROLLBACK%';
+--
+-- ---------------------------------------------------------------------
+-- P-7 -- LA BORNE DE COHERENCE MORD, ET ELLE LAISSE TRAVAILLER.
+-- ---------------------------------------------------------------------
+-- Elle ne dit qu'UNE chose : adresse de production non nulle =>
+-- 'traitee'. Et PAS la reciproque. Six cas : trois qui doivent PASSER,
+-- trois qui doivent etre REFUSES.
+--
+-- ATTENDU : six lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, le compte de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p7_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p7$
+-- declare
+--     v_id    bigint;
+--     v_url   text := 'https://www.cdatso.be/analyses-de-films/films/le-chateau-ambulant.html';
+--     v_essai text := 'https://pilote.cdatso.be/films/le-chateau-ambulant.html';
+-- begin
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-7 coherence -- A ROLLBACK', 'a_traiter', 'AH')
+--     returning id into v_id;
+--
+--     -- (1) DOIT PASSER : a_traiter -> traitee AVEC l'adresse, dans le
+--     --     meme geste -- exactement le PATCH a deux champs de la page
+--     --     privee.
+--     begin
+--         update public.demandes
+--            set statut = 'traitee', page_production = v_url
+--          where id = v_id;
+--         insert into p7_resultats values ('1 vers traitee AVEC adresse', 'ACCEPTE', 'ACCEPTE');
+--     exception when check_violation then
+--         insert into p7_resultats values ('1 vers traitee AVEC adresse', 'REFUSE', 'ACCEPTE');
+--     end;
+--
+--     -- (2) DOIT PASSER : une traitee SANS adresse -- sens unique (les
+--     --     demandes deja traitees, avant R-2).
+--     begin
+--         update public.demandes set page_production = null where id = v_id;
+--         insert into p7_resultats values ('2 traitee SANS adresse', 'ACCEPTE', 'ACCEPTE');
+--     exception when check_violation then
+--         insert into p7_resultats values ('2 traitee SANS adresse', 'REFUSE', 'ACCEPTE');
+--     end;
+--
+--     -- (3) DOIT PASSER : adresse posee SEULE sur une traitee -- le geste
+--     --     de R-2.
+--     begin
+--         update public.demandes set page_production = v_url where id = v_id;
+--         insert into p7_resultats values ('3 adresse seule sur traitee', 'ACCEPTE', 'ACCEPTE');
+--     exception when check_violation then
+--         insert into p7_resultats values ('3 adresse seule sur traitee', 'REFUSE', 'ACCEPTE');
+--     end;
+--
+--     -- (4) DOIT ETRE REFUSE : quitter traitee (vers mise_de_cote) SANS
+--     --     remettre l'adresse a NUL -- un geste du Table Editor que la
+--     --     base doit arreter.
+--     begin
+--         update public.demandes set statut = 'mise_de_cote' where id = v_id;
+--         insert into p7_resultats values ('4 quitter traitee SANS vider', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p7_resultats values ('4 quitter traitee SANS vider', 'REFUSE', 'REFUSE');
+--     end;
+--
+--     -- (5) DOIT ETRE REFUSE : une adresse de production sur a_traiter.
+--     begin
+--         update public.demandes
+--            set statut = 'a_traiter', page_production = v_url
+--          where id = v_id;
+--         insert into p7_resultats values ('5 adresse sur a_traiter', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p7_resultats values ('5 adresse sur a_traiter', 'REFUSE', 'REFUSE');
+--     end;
+--
+--     -- (6) DOIT ETRE REFUSE : une adresse de production sur
+--     --     publiee_pilote -- la page d'essai n'est pas encore adoptee.
+--     --     page_pilote est posee dans le MEME geste, pour que seule la
+--     --     borne de page_production puisse refuser.
+--     begin
+--         update public.demandes
+--            set statut = 'publiee_pilote', page_pilote = v_essai,
+--                page_production = v_url
+--          where id = v_id;
+--         insert into p7_resultats values ('6 adresse sur publiee_pilote', 'ACCEPTE', 'REFUSE');
+--     exception when check_violation then
+--         insert into p7_resultats values ('6 adresse sur publiee_pilote', 'REFUSE', 'REFUSE');
+--     end;
+-- end
+-- $p7$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p7_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0.
+--
+-- select count(*) as restes
+--   from public.demandes
+--  where titre like 'P-7 %A ROLLBACK%';
+--
+-- ---------------------------------------------------------------------
+-- P-8 -- LE JOURNAL ECRIT LE GESTE 'adresse'.
+-- ---------------------------------------------------------------------
+-- Sept cas, sur UNE demande d'appui, dans l'ordre de sa vie :
+--   (1) la creation ecrit UNE ligne 'creation' ;
+--   (2) etape ET adresse dans le MEME update ecrivent DEUX lignes -- une
+--       'etape', une 'adresse' (decision E2 d'AH) ;
+--   (3) une adresse changee SEULE ecrit UNE ligne 'adresse' ;
+--   (4) ce qu'elle porte : '<colonne> : <valeur>' avant ET apres
+--       (decision E3 d'AH) ;
+--   (5) une adresse remise a NUL ecrit UNE ligne, dont 'apres' vaut
+--       'page_production : (nulle)' -- jamais NUL ('apres not null') ;
+--   (6) page_pilote changee seule ecrit, elle aussi, UNE ligne ;
+--   (7) un update qui ne change NI l'etape NI une adresse n'ecrit RIEN.
+--
+-- ATTENDU : sept lignes, 'jugement' a 'OK' partout. Puis, apres le
+-- rollback, DEUX comptes de restes a 0.
+--
+-- begin;
+--
+-- create temporary table p8_resultats (
+--     cas text, verdict text, attendu text) on commit drop;
+--
+-- do $p8$
+-- declare
+--     v_id    bigint;
+--     v_n     integer;
+--     v_url1  text := 'https://www.cdatso.be/analyses-de-films/films/le-chateau-ambulant.html';
+--     v_url2  text := 'https://www.cdatso.be/analyses-de-films/films/rose.html';
+--     v_essai text := 'https://pilote.cdatso.be/films/rose.html';
+--     v_texte text;
+-- begin
+--     -- (1) creation
+--     insert into public.demandes (titre, statut, decideur)
+--     values ('P-8 journal -- A ROLLBACK', 'a_traiter', 'AH')
+--     returning id into v_id;
+--     select count(*) into v_n from public.demandes_journal where demande_id = v_id;
+--     insert into p8_resultats values ('1 creation : lignes', v_n::text, '1');
+--
+--     -- (2) etape ET adresse, le geste courant de la page vers 'traitee'
+--     update public.demandes
+--        set statut = 'traitee', page_production = v_url1
+--      where id = v_id;
+--     select string_agg(geste, '+' order by geste) into v_texte
+--       from public.demandes_journal
+--      where demande_id = v_id and geste <> 'creation';
+--     insert into p8_resultats values ('2 etape+adresse : gestes', coalesce(v_texte, '(aucun)'), 'adresse+etape');
+--
+--     -- (3) adresse SEULE
+--     select count(*) into v_n from public.demandes_journal where demande_id = v_id;
+--     update public.demandes set page_production = v_url2 where id = v_id;
+--     select count(*) - v_n into v_n from public.demandes_journal where demande_id = v_id;
+--     insert into p8_resultats values ('3 adresse seule : lignes en plus', v_n::text, '1');
+--
+--     -- (4) ce que la derniere ligne porte
+--     select avant || ' -> ' || apres into v_texte
+--       from public.demandes_journal
+--      where demande_id = v_id
+--      order by id desc limit 1;
+--     insert into p8_resultats values ('4 adresse seule : avant -> apres', v_texte,
+--         'page_production : ' || v_url1 || ' -> page_production : ' || v_url2);
+--
+--     -- (5) adresse remise a NUL
+--     select count(*) into v_n from public.demandes_journal where demande_id = v_id;
+--     update public.demandes set page_production = null where id = v_id;
+--     select (count(*) - v_n)::text || ' | ' ||
+--            (select apres from public.demandes_journal
+--              where demande_id = v_id order by id desc limit 1)
+--       into v_texte
+--       from public.demandes_journal where demande_id = v_id;
+--     insert into p8_resultats values ('5 vers NUL : lignes | apres', v_texte, '1 | page_production : (nulle)');
+--
+--     -- (6) page_pilote SEULE (admise sur une traitee : borne de 06)
+--     select count(*) into v_n from public.demandes_journal where demande_id = v_id;
+--     update public.demandes set page_pilote = v_essai where id = v_id;
+--     select (count(*) - v_n)::text || ' | ' ||
+--            (select apres from public.demandes_journal
+--              where demande_id = v_id order by id desc limit 1)
+--       into v_texte
+--       from public.demandes_journal where demande_id = v_id;
+--     insert into p8_resultats values ('6 page_pilote seule : lignes | apres', v_texte, '1 | page_pilote : ' || v_essai);
+--
+--     -- (7) rien de trace : ni etape, ni adresse
+--     select count(*) into v_n from public.demandes_journal where demande_id = v_id;
+--     update public.demandes set titre = titre || ' bis' where id = v_id;
+--     select count(*) - v_n into v_n from public.demandes_journal where demande_id = v_id;
+--     insert into p8_resultats values ('7 ni etape ni adresse : lignes en plus', v_n::text, '0');
+-- end
+-- $p8$;
+--
+-- select cas, verdict, attendu,
+--        case when verdict = attendu then 'OK' else '>>> ECART <<<' end as jugement
+--   from p8_resultats
+--  order by cas;
+--
+-- rollback;
+--
+-- APRES le rollback -- attendu : 0 et 0.
+--
+-- select (select count(*) from public.demandes
+--          where titre like 'P-8 %A ROLLBACK%') as demandes_restantes,
+--        (select count(*) from public.demandes_journal j
+--           join public.demandes d on d.id = j.demande_id
+--          where d.titre like 'P-8 %A ROLLBACK%')  as journal_restant;
+--
+-- PUIS REJOUER P-5 (plus haut), tel quel : attendu inchange -- cinq
+-- lignes 'OK', puis 0 et 0. Son cas (1) compte DEUX lignes pour une
+-- creation et un changement d'etape SANS adresse : la branche 'adresse'
+-- ne doit rien y ajouter.
+--
+-- SI UNE SEULE LIGNE DE P-6, P-7, P-8 OU P-5 REND '>>> ECART <<<' : la
+-- borne correspondante ne fait pas ce qu'elle annonce. ARRET, et on le
+-- signale -- on ne "reessaie" pas, et on ne passe pas a la suite.
 -- ---------------------------------------------------------------------

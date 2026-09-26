@@ -31,6 +31,14 @@
   double garde de carte() ; la chaine pilote, elle, n'ecrit jamais en
   base.
 
+  DEPUIS LE 26/09/2026 (BKL-CIN-099), UN SECOND LIEN, VERS DU CONTENU
+  RELU : chaque carte "Traitees" peut porter le lien vers la page de son
+  analyse sur le site de production www.cdatso.be. Meme facture que le
+  lien d'essai : l'adresse est posee par AH seul (page privee, ou bloc
+  R-2 de supabase/07-page-production.sql), bornee EN BASE en forme et en
+  coherence, et rejouee ici sous DOUBLE garde (etape 'traitee' ET forme)
+  avant qu'un lien soit cree.
+
   Le texte affiche au visiteur est du CONTENU : francais accentue. Le
   CODE reste en ASCII pur.
 
@@ -87,6 +95,8 @@
   }
   .lien-essai { margin-top: 0.5rem; font-size: 0.92rem; }
   .lien-essai a { color: var(--accent); }
+  .lien-production { margin-top: 0.5rem; font-size: 0.92rem; }
+  .lien-production a { color: var(--accent); font-weight: 600; }
   #message {
     border-left: 3px solid var(--alerte);
     background: var(--carte);
@@ -214,6 +224,21 @@
     String.raw`^https://pilote\.cdatso\.be/films/[a-z0-9]+(-[a-z0-9]+)*\.html$`;
   var FORME_PAGE_PILOTE = new RegExp(FORME_PAGE_PILOTE_TEXTE);
 
+  // ---------------------------------------------------------------------
+  // LA FORME D'UNE ADRESSE DE PRODUCTION (BKL-CIN-099, 26/09/2026).
+  // ---------------------------------------------------------------------
+  // MEME REGLE QUE CI-DESSUS, POUR LE SITE DE PRODUCTION : l'expression
+  // est la meme, caractere pour caractere, qu'en base
+  // (supabase/07-page-production.sql, contrainte
+  // demandes_page_production_forme_check) et que dans admin.html. La passe
+  // D de outils/controler-proprete.mjs compare les trois textes et juge
+  // en JavaScript les quatorze cas de l'epreuve P-6 (a) -- adresse du
+  // PILOTE, forme sans 'www' et saut de ligne final compris : tous
+  // REFUSES.
+  var FORME_PAGE_PRODUCTION_TEXTE =
+    String.raw`^https://www\.cdatso\.be/analyses-de-films/films/[a-z0-9]+(-[a-z0-9]+)*\.html$`;
+  var FORME_PAGE_PRODUCTION = new RegExp(FORME_PAGE_PRODUCTION_TEXTE);
+
   var zoneMessage = document.getElementById('message');
   var zoneSections = document.getElementById('sections');
 
@@ -324,6 +349,33 @@
       lien.textContent = 'Lire la page d’essai (non relue)';
       zoneLien.appendChild(lien);
       li.appendChild(zoneLien);
+    }
+
+    // -------------------------------------------------------------------
+    // LE LIEN VERS L'ANALYSE PUBLIEE AU SITE -- SOUS DOUBLE GARDE AUSSI.
+    // -------------------------------------------------------------------
+    // (1) l'etape est EXACTEMENT 'traitee' -- la rubrique "Traitees"
+    //     ("Analysees et publiees") et elle seule ;
+    // (2) l'adresse est une CHAINE qui passe l'expression de production,
+    //     la meme qu'en base.
+    // Une 'traitee' sans adresse -- ou dont l'adresse ne passe pas la
+    // garde -- s'affiche SANS lien, et rien d'autre ne casse. La base
+    // admet une 'traitee' sans adresse (borne a sens unique).
+    //
+    // Une carte 'traitee' peut garder aussi son adresse d'ESSAI
+    // (page_pilote : memoire de l'adoption) : elle n'est PAS liee ici --
+    // le lien d'essai n'existe que sous 'publiee_pilote', ci-dessus.
+    if (demande.statut === 'traitee' &&
+        typeof demande.page_production === 'string' &&
+        FORME_PAGE_PRODUCTION.test(demande.page_production)) {
+      var zoneProd = document.createElement('div');
+      zoneProd.className = 'lien-production';
+      var lienProd = document.createElement('a');
+      lienProd.href = demande.page_production;
+      lienProd.rel = 'noopener noreferrer';
+      lienProd.textContent = 'Lire l’analyse';
+      zoneProd.appendChild(lienProd);
+      li.appendChild(zoneProd);
     }
 
     return li;

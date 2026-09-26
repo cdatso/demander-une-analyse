@@ -354,12 +354,33 @@ for (const nomPage of PAGES_SERVIES) {
 // ELLE NE MESURE PAS, et ne le pretend pas : ce que la BASE refuse (c'est
 // P-3 et P-4 de 02-controles-demandes.sql, joues par AH), ni ce que la
 // page privee fait EN MARCHE (aucun outil du depot ne detient de jeton).
+//
+// ETENDUE LE 26/09/2026 (BKL-CIN-099) A L'ADRESSE DE PRODUCTION, sur le
+// meme patron, en quatre points de plus :
+//   D-7  l'expression de PRODUCTION est IDENTIQUE dans
+//        supabase/07-page-production.sql, file.html et admin.html (textes
+//        LUS, et reperes par le NOM de leur variable dans les pages : il y
+//        a desormais DEUX gabarits String.raw par page) ;
+//   D-8  compilee en JavaScript, elle juge bien les QUATORZE cas de
+//        l'epreuve P-6 (a) -- adresse du PILOTE, forme sans 'www', saut
+//        de ligne final et points non echappes compris ;
+//   D-9  le lien "Lire l'analyse" de la file publique n'est cree que sous
+//        DOUBLE GARDE (etape 'traitee' exacte ET forme), par
+//        createElement + textContent, avec rel="noopener noreferrer" ;
+//   D-10 la page privee pose l'adresse de production au passage vers
+//        'traitee' DEPUIS LES DEUX CHEMINS, l'eprouve AVANT l'envoi, la
+//        refuse VIDE (champ obligatoire, decision d'AH du 26/09), la porte
+//        dans le MEME corps que l'etape -- et 'traitee' reste SANS sortie.
+// D-3 est AMENDE le meme jour : la file publique porte desormais DEUX
+// liens gardes, et non plus un (voir D-3).
+// Ce qu'elle ne mesure pas reste ce qui est dit ci-dessus : le refus de
+// la BASE est prouve par P-6 et P-7 de 02, joues par AH.
 
 const CHEMIN_SQL_FORME = 'supabase/06-statut-publiee-pilote.sql';
 const ETAPE_NEUVE = 'publiee_pilote';
 
 console.log('');
-console.log('  --- PASSE D : l ajout du lot S bis, mesure (BKL-CIN-098) ---');
+console.log('  --- PASSE D : l ajout du lot S bis (BKL-CIN-098) et l adresse de production (BKL-CIN-099), mesures ---');
 
 let passeD = true;
 function mesureD(intitule, condition, mesure) {
@@ -468,9 +489,13 @@ if (sourceFile === null) {
                    : (absentes.length ? 'manque : ' + absentes.join(', ')
                                       : 'etape exacte + forme + createElement + rel + textContent'));
 
+  // AMENDE LE 26/09/2026 (BKL-CIN-099) : l'attendu etait UN lien. La file
+  // porte desormais DEUX liens, chacun sous sa double garde : l'essai
+  // (ci-dessus) et la production (D-9). Deux, et pas trois : un lien de
+  // plus, non garde, rougit ici.
   const nbAncres = (sourceFile.match(/createElement\('a'\)/g) || []).length;
-  mesureD('D-3 il n y a QU UN seul lien dans la file publique',
-          nbAncres === 1, nbAncres + " occurrence(s) de createElement('a')");
+  mesureD('D-3 il y a EXACTEMENT DEUX liens dans la file publique (essai, production)',
+          nbAncres === 2, nbAncres + " occurrence(s) de createElement('a')");
 
   mesureD('D-3 l expression est bien COMPILEE et employee',
           sourceFile.indexOf('new RegExp(FORME_PAGE_PILOTE_TEXTE)') !== -1,
@@ -554,12 +579,158 @@ mesureD('D-6 l etape neuve porte le MEME libelle dans les deux pages',
           : JSON.stringify(libFile));
 
 // ---------------------------------------------------------------------
+// D-7 a D-10 -- L'ADRESSE DE PRODUCTION (BKL-CIN-099, 26/09/2026).
+// ---------------------------------------------------------------------
+const CHEMIN_SQL_PRODUCTION = 'supabase/07-page-production.sql';
+const ETAPE_DE_PRODUCTION = 'traitee';
+const sourceSqlProd = lireFichier(CHEMIN_SQL_PRODUCTION);
+
+// D-7 -- LES TROIS TEXTES. Dans les pages, le gabarit est repere par le
+// NOM de sa variable : chaque page en porte deux, et le premier
+// String.raw venu serait celui de l'essai.
+function expressionDuSqlProd(t) {
+  if (t === null) return null;
+  const m = /page_production ~ '(\^https:[^']*)'/.exec(t);
+  return m ? m[1] : null;
+}
+function expressionNommee(t, nom) {
+  if (t === null) return null;
+  const re = new RegExp(nom + '\\s*=\\s*String\\.raw`([^`]*)`');
+  const m = re.exec(t);
+  return m ? m[1] : null;
+}
+
+const expProdSql = expressionDuSqlProd(sourceSqlProd);
+const expProdFile = expressionNommee(sourceFile, 'FORME_PAGE_PRODUCTION_TEXTE');
+const expProdAdmin = expressionNommee(sourceAdmin, 'FORME_PAGE_PRODUCTION_TEXTE');
+
+mesureD('D-7 l expression de PRODUCTION est LISIBLE aux trois endroits',
+        expProdSql !== null && expProdFile !== null && expProdAdmin !== null,
+        '07 ' + (expProdSql === null ? 'INTROUVABLE' : 'lue') +
+        ' / file.html ' + (expProdFile === null ? 'INTROUVABLE' : 'lue') +
+        ' / admin.html ' + (expProdAdmin === null ? 'INTROUVABLE' : 'lue'));
+
+const troisProdIdentiques = expProdSql !== null && expProdSql === expProdFile &&
+                            expProdSql === expProdAdmin;
+mesureD('D-7 les TROIS textes de production sont identiques, caractere pour caractere',
+        troisProdIdentiques,
+        troisProdIdentiques
+          ? 'identiques (' + expProdSql.length + ' caracteres) : ' + expProdSql
+          : 'ECART -- 07 : ' + JSON.stringify(expProdSql) +
+            ' | file.html : ' + JSON.stringify(expProdFile) +
+            ' | admin.html : ' + JSON.stringify(expProdAdmin));
+
+// D-8 -- LES QUATORZE CAS DE P-6 (a), dans le meme ordre que le bloc SQL.
+const BASE_PROD = 'https://www.cdatso.be/analyses-de-films/films/';
+const CAS_FORME_PROD = [
+  ['01 adresse valide, slug compose', BASE_PROD + 'le-chateau-ambulant.html', true],
+  ['02 adresse valide, slug simple', BASE_PROD + 'rose.html', true],
+  ['03 adresse du PILOTE', 'https://pilote.cdatso.be/films/le-chateau-ambulant.html', false],
+  ['04 http en clair', 'http://www.cdatso.be/analyses-de-films/films/rose.html', false],
+  ['05 sans www', 'https://cdatso.be/analyses-de-films/films/rose.html', false],
+  ['06 remontee de chemin', BASE_PROD + '../docs/secret.html', false],
+  ['07 chaine de requete', BASE_PROD + 'rose.html?x=1', false],
+  ['08 majuscules dans le slug', BASE_PROD + 'Le-Chateau.html', false],
+  ['09 domaine-leurre en suffixe', 'https://www.cdatso.be.evil.be/analyses-de-films/films/rose.html', false],
+  ['10 chemin hors films/', 'https://www.cdatso.be/analyses-de-films/docs/journal.html', false],
+  ['11 fragment', BASE_PROD + 'rose.html#x', false],
+  ['12 valide + SAUT DE LIGNE final', BASE_PROD + 'rose.html\n', false],
+  ['13 schema javascript', 'javascript:alert(1)', false],
+  ['14 points non echappes (leurre)', 'https://wwwXcdatsoYbe/analyses-de-films/films/rose.html', false]
+];
+
+if (expProdFile === null) {
+  mesureD('D-8 les quatorze cas de P-6 (a), juges en JavaScript', false,
+          'expression de production introuvable dans file.html : rien a eprouver');
+} else {
+  const reProd = new RegExp(expProdFile);
+  let bonsProd = 0;
+  const ecartsProd = [];
+  for (const [nom, valeur, attendu] of CAS_FORME_PROD) {
+    const verdict = reProd.test(valeur);
+    if (verdict === attendu) bonsProd++;
+    else ecartsProd.push(nom + ' -> ' + (verdict ? 'ACCEPTEE' : 'REFUSEE') +
+                         ', attendu ' + (attendu ? 'ACCEPTEE' : 'REFUSEE'));
+  }
+  mesureD('D-8 les quatorze cas de P-6 (a), juges en JavaScript',
+          bonsProd === CAS_FORME_PROD.length,
+          bonsProd + ' / ' + CAS_FORME_PROD.length +
+          (ecartsProd.length ? ' -- ECARTS : ' + ecartsProd.join(' ; ')
+                             : ' (pilote, sans www et saut de ligne final : REFUSES)'));
+}
+
+// D-9 -- LA DOUBLE GARDE DU LIEN DE PRODUCTION, DANS file.html.
+if (sourceFile === null) {
+  mesureD('D-9 la double garde du lien de production', false, 'file.html introuvable');
+} else {
+  const ancreProd = "if (demande.statut === '" + ETAPE_DE_PRODUCTION + "' &&";
+  const iProd = sourceFile.indexOf(ancreProd);
+  const blocProd = iProd === -1 ? '' : sourceFile.slice(iProd, iProd + 700);
+  const exigencesProd = [
+    ["typeof demande.page_production === 'string'", 'la valeur est une CHAINE'],
+    ['FORME_PAGE_PRODUCTION.test(demande.page_production)', 'la forme est eprouvee'],
+    ["createElement('a')", 'le lien est cree par createElement'],
+    ["rel = 'noopener noreferrer'", 'rel noopener noreferrer'],
+    ['textContent =', 'le libelle passe par textContent'],
+    ['href = demande.page_production', 'le lien pointe l adresse EPROUVEE']
+  ];
+  const absentesProd = exigencesProd.filter(([motif]) => blocProd.indexOf(motif) === -1)
+                                    .map(([, nom]) => nom);
+  mesureD("D-9 le lien de production n est cree que sous la DOUBLE GARDE (etape 'traitee' + forme)",
+          iProd !== -1 && absentesProd.length === 0,
+          iProd === -1 ? 'le bloc garde est INTROUVABLE'
+                       : (absentesProd.length ? 'manque : ' + absentesProd.join(', ')
+                                              : 'etape exacte + forme + createElement + rel + textContent + href'));
+
+  mesureD('D-9 l expression de production est bien COMPILEE dans file.html',
+          sourceFile.indexOf('new RegExp(FORME_PAGE_PRODUCTION_TEXTE)') !== -1,
+          sourceFile.indexOf('new RegExp(FORME_PAGE_PRODUCTION_TEXTE)') !== -1
+            ? 'new RegExp(FORME_PAGE_PRODUCTION_TEXTE) present' : 'ABSENT');
+}
+
+// D-10 -- LE CHAMP DE LA PAGE PRIVEE.
+if (sourceAdmin === null) {
+  mesureD('D-10 le champ d adresse de production', false, 'admin.html introuvable');
+} else {
+  const depuisTraitee = ciblesDe(sourceAdmin, 'traitee');
+  mesureD("D-10 'traitee' reste SANS sortie (decision d AH du 21/09 : aucun geste)",
+          depuisTraitee !== null && depuisTraitee.length === 0,
+          depuisTraitee === null ? 'ligne INTROUVABLE' : '[' + depuisTraitee.join(', ') + ']');
+
+  const depuisATraiter = ciblesDe(sourceAdmin, 'a_traiter');
+  const depuisPubliee = ciblesDe(sourceAdmin, ETAPE_NEUVE);
+  const deuxChemins = depuisATraiter !== null && depuisATraiter.indexOf(ETAPE_DE_PRODUCTION) >= 0 &&
+                      depuisPubliee !== null && depuisPubliee.indexOf(ETAPE_DE_PRODUCTION) >= 0;
+  mesureD("D-10 les DEUX chemins vers 'traitee' existent (a_traiter, publiee_pilote)",
+          deuxChemins,
+          'a_traiter -> ' + (depuisATraiter === null ? 'INTROUVABLE' : '[' + depuisATraiter.join(', ') + ']') +
+          ' ; publiee_pilote -> ' + (depuisPubliee === null ? 'INTROUVABLE' : '[' + depuisPubliee.join(', ') + ']'));
+
+  // Le champ depend de la CIBLE, pas de l'origine : c'est ce qui le pose
+  // sur les deux chemins a la fois.
+  const exigencesAdmin = [
+    ["var ETAPE_AVEC_ADRESSE_DE_PRODUCTION = 'traitee';", 'l etape qui demande l adresse est traitee'],
+    ['if (cible === ETAPE_AVEC_ADRESSE_DE_PRODUCTION) {', 'le champ depend de la CIBLE (donc des deux chemins)'],
+    ["adresseProduction === ''", 'le champ VIDE est refuse (obligatoire)'],
+    ['FORME_PAGE_PRODUCTION.test(adresseProduction)', 'la forme est eprouvee AVANT l envoi'],
+    ['corps.page_production = adresseProduction;', 'l adresse part dans le MEME corps que l etape'],
+    ['new RegExp(FORME_PAGE_PRODUCTION_TEXTE)', 'l expression est compilee']
+  ];
+  const absentesAdmin = exigencesAdmin.filter(([motif]) => sourceAdmin.indexOf(motif) === -1)
+                                      .map(([, nom]) => nom);
+  mesureD('D-10 la page privee pose, eprouve et exige l adresse de production',
+          absentesAdmin.length === 0,
+          absentesAdmin.length ? 'manque : ' + absentesAdmin.join(', ')
+                               : 'etape + cible + vide refuse + forme avant envoi + meme corps + compilee');
+}
+
+// ---------------------------------------------------------------------
 
 console.log('');
 console.log('  TOTAL : ' + totalBrut + ' occurrence(s) brute(s) de vrais motifs de secret, ' +
             (totalValorise + motsDePasse) + ' valorisee(s) (secrets reels + mots de passe) ; ' +
             'passe C (' + PAGES_SERVIES.join(' + ') + ') ' + (passeC ? 'CONFORME' : 'NON CONFORME') +
-            ' ; passe D (ajout du lot S bis) ' + (passeD ? 'CONFORME' : 'NON CONFORME') + '.');
+            ' ; passe D (lot S bis + adresse de production) ' + (passeD ? 'CONFORME' : 'NON CONFORME') + '.');
 
 const vert = totalValorise === 0 && motsDePasse === 0 && passeC && passeD && manquants.length === 0;
 console.log(vert
